@@ -196,7 +196,112 @@ para passar essa logica a gente usa * para identificar o tudo que vier depois. f
     a gente não vai usar isso pra tudo. a gente usa geralmente para quando estamos em uma pasta muito profunda e queremos pegar algo de la da src .
     
 
+# prisma
+nos podemos usar querybuilder como o knex porem ele não tem um controle tão grande porque ele não sabe se as tabelas realmente existem no banco de dados a gente tem que fazer a tipagem na mão, iinformar quais são as tabelas, os campos os tipos do campos se são obrigatorios e etc.
+porem existe um terceiro nivel de abstração apos os querybuilders
+esse nivel de abstração é o 
+orm
+por exemplo o prisma o typorm sequeize e etc
+elas trazem um alto nivel de abstração para trabalharmos com o banco de dados.
+a grande ideia por tras de um orm object reletion mapper o conceito é anget mapear as relações das tabelas e transformar elas em objetos os campos de uma tabela vao ser mapeadas para estruturas de codigo como objetos que assim a gente consegue pegar eles e trabalhar ele em algo direcionado a objeto como são as linguagens que a gente esta usando.
+a vantagem do prisma é que ele diminui muito o nosso trabalho e prinicipalmente a duplicidade que a gente pode ter em nossos codigos. e ele é muito integrado com o typescript
+o prisma entende a existencia da tabela e ele consegueinferir para a gente e qual a tabela, quais os campos e ele ja fala pra gente se a gente esta preenchendo automaticamente.
+ele tambem faz migration de forma automatizada ou seja não precisamos escrever a migration quando a gente altera algo ele faz a migration atumaticamente.
+a orm suporta varios bancos de dados e ambientes diferentes.
+Vamos instalar o prisma
 
+npm i prisma -D
+
+porem esse é apenas uma interfacede comando não é ele que vai ter acesso ao banco de dados. para isso a gente pode dar um 
+npx prisma init 
+e agora ele inicializa a parte de banco de dados de nossa aplicação
+ele vai criar uma pasta prisma e uma arquivo prisma schema
+e a gene instala a extenção do prisma no vscode
+a gente tambem vai abirr o nosso usersettings e colocar essas linhas
+    "[prisma]": {
+        "editor.formatOnSave": true
+    },
+   com isso ele vai formatar o nosso escquima do prsma pra ele ficar organizado a cada save.
+    
+alem disso dentro do arquivo schema.prisma que esta na pasta prisma. esse qrauivo é uma representação de nossas tabelas. e cada tipo de banco de dados tem um nome diferente para tabela e por isso o prisma chama ela de model 
+o arquivo original esta assim:
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+e nos vamos colocar um model User sempre em letra maicusla e nunca no plural
+o nome da tabela por padrão vai ser User mas a gente pode trocar o nome passando dentro do ojeto um @@map("users") assim a tabela vai se chamar users no plural e minusculo tem esses dois arrobas porqueé a configuração do model os campos da tabela a gente pode ir jogando dentro do objeto não precisamos nos procupar em escreer na sintax errada pq o prisma não vai deixar a gente errar.
+nosso usuario vai ter uma id que vai ser uma string e se depois de passar id String a gente colocar @ ele vai trazer umas configurações para a gente quando a gente coloca @@ a gente configura a tabela inteeira se a gente coloca um so @ a gente esta configurando apenas esse campo. a gente coloca @id pra identificar que esse é o id da tabela e a chave primaria. e vamos passar tambem o default que tem tres possibilidaes o uuid cuid que é a mesma ideia do uuid. ou autoincrement que não é muito aconselhavel. no caso vamos passar o uuid.
+vamos passar tambem um name e um email e o email a gente vai colocar como unico.
+o arquivo ficou assim:
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id    String @id @default(uuid())
+  name  String
+  email String @unique
+
+  @@map("users")
+}
+
+agora com isso salvo vamos dar o comando
+npx prisma generate
+isso vai criar a tipagem automatica para nosso banco de dados.
+para checar se isso funcionou a gente vai em node_modules/.prisma ele vai ter criado uma nova pasta chamada client r vai ter um arquivo chamado index.d.ts
+a gente abre esse arquivo.
+la vai ter a nossa tabela ja tipada
+
+/**
+ * Model User
+ * 
+ */
+export type User = $Result.DefaultSelection<Prisma.$UserPayload>
+se a gente passar o mouse em cima do payload a gente ve nossa tabela.
+ e nesse arquivo tambem tem todas as oprações que a gente pode fazer nela.
+ tem varios metodos como o por exemplo findUnique para a gente achar a primarykey ou o unique tem os metodos create, update, etc tudo pronto.
+ para começar a trabalhar com isso agora a gente precisa instalar o @prisma/client e esse sim é uma dependencia de produção
+ npm i @prisma/client
+ e essa a gente vai usar para acessar o nosso banco de dados.
+ para testar vamos la em app.ts e vamos importar o 
+ import { PrismaClient } from '@prisma/client'
+
+ e para criar uma conexão com o banco de dados basta a gente instanciar esse prima client a gete da uma const prisma  = new prismaClient()
+ e agora ao a gente dar um prisma. ele ja traz la em baixo o nosso users e se a gente der outro ponto ele nos da todos os modos que a gente pode usar.
+ e ai a gente da um create e ele ja mostra que a gente tem que informar o data
+  e dentro do data ele ja traz nossos campos mostrando que o id não é obrigatorios.
+  fica assim:
+  import fastify from 'fastify'
+import { PrismaClient } from '@prisma/client'
+
+export const app = fastify()
+
+const prisma = new PrismaClient()
+
+prisma.user.create({
+  data: {
+    name: 'Iuri Reis',
+    email: 'iuri@reis.com',
+  },
+})
+porque o id é criado automatico la pelo uuid mas se a gente quiser informar podemos tambem. porem se a gente tentar informar um camoi diferente de como ele deve er tipo âssar um number para um string ele diz que não pode.
+a nossa conexção ainda não esta feita. mas por enquanto vamos deixar assim enquanto configuramos outras coisas.
 
 
 
