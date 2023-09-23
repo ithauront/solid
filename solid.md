@@ -84,3 +84,81 @@ vamos agora no package.json para configurar alguns scripts ficaram assim os novo
     o dev para rodar a aplicação o build para criar a pasta build para produção e o start para rodar ele em produção ou seja rodar o server da pasta build.
 
 
+ # configurar npm
+ vamos configurar o npm criando um arquivo na raiz chamado .npmrc dentro dele a gente vai escrever unicamente 
+ save-exact=true
+ isso faz com que quando a gente execute um npm aguma coisa, a versão do npm vai ficar fixa. ou seja se a gente configurar no package.json uma versão ele vai sempre usar essa.
+ depois disso a gente pode instalar todas as dependencias de novo que ele vai fixar as versoes
+ a gente faz isso porque quando colocamos o projeto no ar é importante de sempre atuaizarmos as dependencias dos nossos projetos.
+ e néao da para tirar um dia com o projeto bem defasado e atualizar tudo de vez, porque isso pode quebrar o codigo por compatibilidade e outros motivos.
+ então podemos usar um bot do github como o renovate que caso as nossas dependencias estejam fixas ele pode ficar olhando e e atualizando e apos atualizar ele roda os testes de nossa aplicação para ver se não quebrou nada
+ caso os testes passem ele pede cria uma pull request para a gente atualizar . caso um teste não passe ele diz o que não passou para a gente tentar reolver.
+
+ # configurar variaveis ambiente
+ vamos criar um arquivo na raiz .env cfriamos tambem o .env.example
+
+ por enquanto colocamos neles apenas a node_env fica assim:
+ NODE_ENV=dev
+
+jogamos o .env tambem no gitignore
+agora vamos carregar essas variaveis em nosso projeto.
+vamos instalar a dotenv
+npm i dotenv
+
+vamos criar uma pasta na src chamada env
+nela vamos criar um arquivo chamado index.ts
+nesse arquivo apenas de a gente importar o dotenv config ele ja carrega as variaveis ambientes
+import 'dotenv/config'
+
+porem vamos tambem validar essas com um esquema então vamos instalar o zod para isso.
+npm i zod
+
+de volta ao arquivo env/index.ts vamos tambem importar o z de dentro do od
+import { z } from 'zod'
+
+e ai criamos a const envSchema = z.object({})
+é um z.object porque quando o dot.env carregar as nosas variaveis ambiente cada um das propriedades que vier como o NODE_ENV evai vir como um objeto.
+
+então vamos fazer nosso esquema de validação dentro desse objeto fica assim:
+import 'dotenv/config'
+import { z } from 'zod'
+
+const envSchema = z.object({
+    NODE_ENV : z.enum(['dev', 'production', 'test']).default('dev'),
+    PORT : z.coerce.number().default(3333)
+})
+
+agora vamos criar a validação em si.
+vamos criar uma variavel chamada _env = envSchema e vamos passar um safeParse(process.env) 
+o safe parse vai tentar validar e ver se deu certo. a gente vai fazer um if o _env.sucesse === false ou seja se deu errado a gente vai dar um console.error('invalid env variables') e tambem passar os erros que aconteceram usando o _env.error.format.
+e vamos dar um trhow new error para impedir que continue rodando codigo
+so ele passe por isso sem dar erro a gente vai exportar a variavel env sendo igual ao _env.data que é os dados que forma parseados. a pagina fica assim:
+import 'dotenv/config'
+import { z } from 'zod'
+
+const envSchema = z.object({
+    NODE_ENV : z.enum(['dev', 'production', 'test']).default('dev'),
+    PORT : z.coerce.number().default(3333)
+})
+
+const _env = envSchema.safeParse(process.env)
+
+if (_env.success === false) {
+    console.error('invalid env vabriables', _env.error.format())
+    throw new Error('invalid env vabriables')
+} 
+
+export const env = _env.data
+
+para testar isso a gente vai no server e muda a port para env.port com cuidado para importar do nosso ./env fica assim:
+import { app } from "./app";
+import { env } from "./env";
+
+app.listen({
+    host: '0.0.0.0',
+    port: env.PORT,
+
+
+
+
+
