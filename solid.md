@@ -158,6 +158,44 @@ app.listen({
     host: '0.0.0.0',
     port: env.PORT,
 
+# configurar o eslint
+vamos instalar o eslint ja com a config da rocketseat
+ npm i eslint @rocketseat/eslint-config -D
+ na raiz vamos criar um arquivo chamado .eslintrc.json
+ {
+    "extends": [
+        "@rocketseat/eslint-config/node"
+    ]
+}
+
+apos salvar isso ele começa a corrijir os erros. a gente pode fazer o script se quiser com o fix, mas não vamos fazer agora.
+vamos criar um arquivo .eslintignore
+para ignorar algumas pastas e vamos colocar a build e o node_modules la
+
+# analises de importação
+criar atalhos de caminhos alias na hora de fazer importações entre arquivos
+quando a gente tem muitas pastas uma dentro da outra e a gente importa um arquivo fica la assim ../../../../ etc
+pode ficar dificil de entender onde esta o negocio.
+para mudar isso a gente vai la no nosso tsconfig.json e procurar a opção chamada base_url
+ela ta em modules
+ele diz qual é o diretorio raiz da aplicação 
+a gente é obrigado a descomnetar ele para poder informar o que a gente quer que é o paths que esta logo abaixo
+vamos abrir dentro do objeto do paths e vamos dar a logica do quando a gente fizer uma importação que comece com @/ tudo que vier depois do barra eu quero que o vscode pegue como vindo do ./src/ qualquer coisa que vem apos o src
+o seja ao invez de fazer o camoinho de ir saindo das pastas a gente vai fazer o caminho entrando a partir da src
+para passar essa logica a gente usa * para identificar o tudo que vier depois. fica assim:
+ /* Modules */
+    "module": "commonjs",                                /* Specify what module code is generated. */
+    // "rootDir": "./",                                  /* Specify the root folder within your source files. */
+    // "moduleResolution": "node10",                     /* Specify how TypeScript looks up a file from a given module specifier. */
+    "baseUrl": "./",                                  /* Specify the base directory to resolve non-relative module names. */
+    "paths": {
+      "@/*" : ["./src/*"] 
+    },            
+
+    mais pra frente a gente tem que configurar um pouco mais isso por conta dos testes mas o proprio tsx deve entender isso então o programa continua funciona.
+    a gente não vai usar isso pra tudo. a gente usa geralmente para quando estamos em uma pasta muito profunda e queremos pegar algo de la da src .
+    
+
 
 
 
