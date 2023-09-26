@@ -303,5 +303,122 @@ prisma.user.create({
 porque o id é criado automatico la pelo uuid mas se a gente quiser informar podemos tambem. porem se a gente tentar informar um camoi diferente de como ele deve er tipo âssar um number para um string ele diz que não pode.
 a nossa conexção ainda não esta feita. mas por enquanto vamos deixar assim enquanto configuramos outras coisas.
 
+## docker
+o docker facilita muito o deploy mas nos vamos usar ele tambem em desenvolvimento
+o docker tem uma ideia de container para armazenar as coisas que a gente instala para fazer a aplicação de uma forma que  caso a gente queira apagar ele vai retirar sem deixar nenhum resquicio no nosso sistema operacional, funciona meio que como uma virtualização ou um hd a parte.
+porem diferente da virtualização ele não tem o sistema operacional. no desenvolvimento a gente vai usar o docker para subir os serviços como postgress de banco de dados de forma mais facil e de forma que fique igual para todos os usuario/dev.
+como a gente pode ter varias aplicações que podem usar o mesmo banco de dados como o postgress ele pode acabar ficando com configurações estranhas que vao interferir entre os diferentes app. com o docker a gente meio que tem um postgress para cada aplicaçã assim não da conflito.
+vamos instalar o docker seguindo o guia nesse site:
+https://docs.docker.com/desktop/install/windows-install/
+se for outro sistema operacional a gente usa outro install e não o windows install
+agora com o docker iocker do a gente pode no terminal dar o commando docker -v para ver a versão dele e se certificar que ele esta instalado.
+a gente pode ir no site docker hub que é um repositorio de imagens do docker ou seja scripts preconfigurados para executar algumas coisas comuns como banco postgress node, e outros.
+nos podemos ter acesso a isso tambem no docker desktot na aba de images
+a gente poderia pegar a image oficial do postgrees mas como a rocketseat prefere usar a da bitnamio vamos usar a mesma que eles.
+a gente pode achar ela aqui;
+
+https://hub.docker.com/r/bitnami/postgresql
+
+a gente usa a bitnaç porque eles ja se preocupam muito com a segurança
+
+agora como nos vamos rodar ela npasossa  projeto vamos rodar
+docker run --name api-solid-pg bitnami/postgresql  (não passar ainda esse comando)
+
+apos o nome a gente coloca o nome do banco de dados que queremos criar
+apos esse nome o que tem é o nome da imagem que queremos utilizar e podemos ou não colocar :latest no fim
+porem ainda não vamos executar o comando porque queremos fazer umas configurações oara passar umas variaveis ambientes
+a gente pode depois do nome do banco de dados passar um -e POSTGRESQL_USERNAME=docker e ppassar um outro -e POSTGRESQL_PASSWORD=docker  e mais um -e para o database POSTGRESQL_DATABASE=apisolid
+vamos tambem passar um outro parametro -p 5432:5432 que o -p vem de port dessa forma a gente publica uma porta que o postgre roda por padr éao na porta 5432 quando a gente cria ele no docker ele roda em um ambiente isolado de nossa maquina ou seja ao rodar isso sem passar a porta a gente não consegue localizar ele no nosso localhost
+ou sejaesse comando direciona a porta 5432 de nossa maquina para a porta 5432 de dentro do container.
+o coando fica assim:
+docker run --name api-solid-pg -e POSTGRESQL_USERNAME=docker -e POSTGRESQL_PASSWORD=docker -e POSTGRESQL_DATABASE=apisolid -p 5432:5432 bitnami/postgresql
+ao rodar isso ele vai commeçar a criar o banco de dados.
+e  o fim ele vai nos dar essa mensagem
+2023-09-26 11:56:37.027 GMT [1] LOG:  database system is ready to accept connections
+
+porem é ruim que sempre que a gente queira iniciar nossa aplicação a gente precise dar esse comando todo. e para isso o docker nos da essa solução:
+então se a gente parar o container com cnrtl c e a gente der um  docker ps -a ele mostra todos os container que a gente ja rodou ou seja ele guarda isso em cash.
+então para coltar ele a gente não pode mais rodar todo aquele comando porque ele tentaria criar um novo. a gente vai dar um docker start e passar o id ou o nome do container.
+docker start api-solid-pg
+e para parar a gente pode usar um docker stop e passar o id ou nome
+e para deletar o container a gente da o docker rm e passar o nome
+para ver os log a gente pode dar um docker logs e o nome do container
+se a genge for agora no nosso .env a gente vai ver alguns comentarios e o database que o prisma criou automaticamente podemos apagar os comentarios e mudamos o database que ele criou de johndoe para docker e o nome do banco para apisolid
+fica assim:
+DATABASE_URL="postgresql://docker:docker@localhost:5432/apisolid?schema=public"
+agora com isso salvo para testar que a conexão esta funcionando vamos rodar um
+ npx prisma migrate dev
+esse comando faz com que o prisma vai no nosso schema.prisma e vai ver as tabelas que temos e vai ver o que ainda não foi refletido no banco de dados ao ver isso ele vai detectar isso e vai dizer que tem alterações para fazere pedir um nome para a migration
+o nome deve ser o que fizemos desde a ultima vez que executamos esse comando e como é a primeira vezvamos dizerq eu criamos a tabela users que foi o que a gente fez
+com isso el vai criar uma pasta prisma e dentro dela uma pasta migration com a migrationque a gente acaboude fazer com timestamp e tudo 
+agora para navegar pelas tableas o prisma traz o prisma studio então se a gente rodar 
+npx prisma studio ele vai abri o navegador em uma interface que nos perite navegar nas tabelas.
+e la nos podemos inclusive fazer entradas na nossa tabela e salvar.
+
+porem o docker esta rodando na nossa maqiina para uma outra pessoa acessar ela teria que fazer aqueel comando tambem. para evitar isso a gente vai fazer assim:
+vamos usar a feramenta do docker chamada docker compose que é um arquivo criado na raiz do projeto com o nome de docker-compose.yml
+nesse arquivo vamos colocar o comando de criação que executamos no docker
+e traduzi-lo para a sintaxe do docker compose.
+vamos colocar ele la como comentario e depois vamos começar a trabalhar ele
+passando o version
+vamos passar a 3
+e depois passar os services
+o primeiro serviço é o nome que a gente usou. depois a imagem que é o bitnmai/postgre
+depois a porta e depois a enviromnment
+e a gente passa todos os nossos environments  o arquivo fica assim:
+
+version: '3'
+
+services:
+  api-solid-pg:
+    image: bitnami/postgresql
+    ports:
+      - 5432:5432
+    environment:
+      - POSTGRESQL_USERNAME=docker
+      - POSTGRESQL_PASSWORD=docker
+      - POSTGRESQL_DATABASE=apisolid
+
+  agora para testar isso a gente vai parar o nosso banco com docker stop api-solid-pg
+  e vamos até deletar ele usando o docker rm api-solid-pg
+  agora para subir a aplicação a gente vai dar um 
+  docker compose up -d
+   -d é para rodar os containers em modo detach para não ficar mostrando no terminal o log dos containers 
+   agora se a gente rodar docker ps ele ja mostre
+   agora se a gente quiser parar os conteiners a gente da docker compose stop. o docker compose down é para deletar as o container com todas suas tabelas então evitamos usat ele
+   agora oustras pessoas que queiram usar so vao colocar o docker compose up e vai pegar nossa aplicação vai rodar com o container.
+   como nos apagamos o banco para criar de novo nos precisamos criar de novo a tabela no banco de dados então vamos rodar de novo o npx prisma migrate dev
+
+   # criando o schema do prism
+   vamos na nossa pasta prisma e no arquivo shema.prisma e abaixo de tudo que ja tem vamos abrir dois novos models o checkin e o Gym
+   todos vao ter o id igual o do users então podemos copiar colar na academia vamos colocar title vamos colocar description como opicional usando o ?  o phone tambem como opcional e o mais importante a latitude e longitude como decimal para a gente poder achar ela na geolocalização fica assim o gym o qiue impede de os usuarios fazerem loging a distancia por outroa pessoa e etc. tambem vamos remapear ou renomear a tabela para gyms usando o @@map
+   model Gym {
+  id          String  @id @default(uuid())
+  title       String
+  description String?
+  phone       String?
+  latitude    Decimal
+  longitude   Decimal
+
+  @@map("gyms")
+}
+no checkin vamos renoemar para check_ins no checkin vamos tambem ter o campo created_at com um datetime e o default vai ser now.
+o checkin vai ser possivel de ser validado por um adm da academia. ou seja o checkin pode ser validado.
+a gente poderia usar um boolean para se esta ou não validado. mas se a gente trocar por uma data e colocar ela como opcional a gente tem duas informações em uma, se ela estiver preenchida quer dizer que foi validado mesmo e alem disso a gente ja engloba o quando foi validado.
+na tabela users vamos tambem colocar um password como string e como precisa ser encriptada vamos salvar como password_hash pq ele vai ser um hash da senha
+a diferença entre hash e criptografia é que a criptografia pode ser descriptografada o hash não a partir do momento que ele foi criado a genter não pode mais voltar ele para o original
+vamos colocar tambem um created_At da mesma forma que o outro que ja fizemos. não precisamos ficar colocando dados desnecessarios em todas as tabelas.
+
+agora vamos rodar novamente o npx prisma migrate dev para atualizar as tabelas.
+o docker tem qiue esta rodando para isso.
+quando a gente for dar deploy a gente néao vai colocar mais o dev porque ele não vai mais comparar com o que tem para ver se precisa criar uma nova migratiot
+ele vai criar a nova migração e o arquivo sql vai ter um warning porque nos criamos uma nova coluna em uma tabela existente que não tem default e é obrigatoria isso quer dizer que caso ja tenha algo nessa tabela ele vai quebrar porque qs coisas vao ter nulo em um valor obrigatorio.então caso a gente ja tivesse algo na database a gente teria que colocar ela como opcional ou dar um valor default mesmo que esse valor fosse em branco ou nulo.
+
+
+
+
+
+
+
 
 
