@@ -414,6 +414,74 @@ o docker tem qiue esta rodando para isso.
 quando a gente for dar deploy a gente néao vai colocar mais o dev porque ele não vai mais comparar com o que tem para ver se precisa criar uma nova migratiot
 ele vai criar a nova migração e o arquivo sql vai ter um warning porque nos criamos uma nova coluna em uma tabela existente que não tem default e é obrigatoria isso quer dizer que caso ja tenha algo nessa tabela ele vai quebrar porque qs coisas vao ter nulo em um valor obrigatorio.então caso a gente ja tivesse algo na database a gente teria que colocar ela como opcional ou dar um valor default mesmo que esse valor fosse em branco ou nulo.
 
+# relacionamentos entre tabela
+nos podemos ter relacionamentos de 1-1, 1-n ou n-n
+um dados de uma tabela vai se relacionat somente com um dado de outra tarbela
+o relacionamento de 1 para n significa que uma informação de uma tabela pode se relacionar com varios registros de outra tabela. por exemplo 1 unico usuario pode fazer varios check ins 
+o relacionamento de n para n é quando um registro em uma tabela pode estar relacionado com varios registros de outra e um registro de outra pode estar relacionado com varios dessa tabela inicial. é como se tivesse um grupo da academia o checkin tambem poderia se relacionar a diversos fucnionarios. qo mesmo tempo que podemos ter varios checkin para varios usuarios.
+para os relacionamentos vamos criar nossas chaves strangeiras.
+ou seja podemos no checkin ter um campo de user id para armazenar o id do usuario que fez o checkin e tambem um gym id para dizer em qua academia foi feito o checkin
+porem para criar isso no prisma nos temos que dizer que são foreing keys a gente precisa chamar a realete a gente vai escrever dentro da tabela checkin user User para dizer que o relacionamento user esta relacionado a tabela User? so de salvar isso ele ja autocompleta para a gente um monte de coisa
+user   User   @relation(fields: [userId], references: [id])
+  userId String
+   e ele tambem cria a referenia inversa na tabela de users dando um aray para a gente poder passar varios checkin para o usuario.. a gente vai mudar o userId para user_id para seguir o padrão.
+
+vamos mudar la no user de check in para check ins para manter o plural. e onde tem o relacionamento a gente vai usar o camel case poque não vai ser coluna no banco de dados e a gente vai usar isso no javascript com o primsa. o resto a gente coloca em snakecase.
+fazemos o mesmo para gym Gym e as alteraço~es e pronto.
+o arquivo fica assim:
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(uuid())
+  name          String
+  email         String   @unique
+  password_hash String
+  created_at    DateTime @default(now())
+
+  CheckIns CheckIn[]
+
+  @@map("users")
+}
+
+model CheckIn {
+  id           String    @id @default(uuid())
+  created_at   DateTime  @default(now())
+  validated_at DateTime?
+
+  user    User   @relation(fields: [user_id], references: [id])
+  user_id String
+
+  gim    Gym    @relation(fields: [gym_id], references: [id])
+  gym_id String
+
+  @@map("check_ins")
+}
+
+model Gym {
+  id          String  @id @default(uuid())
+  title       String
+  description String?
+  phone       String?
+  latitude    Decimal
+  longitude   Decimal
+
+  CheckIns CheckIn[]
+
+  @@map("gyms")
+}
+
+
+agora rodamos o npx prisma migrate dev de novo
 
 
 
