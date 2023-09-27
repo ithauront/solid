@@ -483,6 +483,101 @@ model Gym {
 
 agora rodamos o npx prisma migrate dev de novo
 
+# rota usuario
+vamos criar a rota mais simples de criação de usuario.
+dentro do nosso app.ts
+vamos retirar isso:
+const prisma = new PrismaClient()
+
+prisma.user.create({
+  data: {
+    name: 'Iuri Reis',
+    email: 'iuri@reis.com',
+  },
+})
+ e no lugar
+vamos criar uma rota 
+app.post('/users', (request, reply) => {
+  
+})
+
+vamos importar o zod para poder fazer a validação dessa rota.
+assim
+  const registerBodySchema = z.object({
+    name: z.string(),
+    email: z.string().email(),
+    password: z.string().min(7),
+  })
+  vamos agora dar um parse no request body
+  const { name, email, password } = registerBodySchema.parse(request.body)
+
+  agora para adicionar o usuario a gente vai ter que fazer a conexãoéaom o brnco. vamos rtirar ela desse arquivo então em src a gente vai fazer uma pasta chamada lib
+  dentro dela a gente faz um arquivo chamado prisma.ts
+  e nesse arquivo a gente exporta a conts prisma sendo igual a new Prismaclient o qrauivo fica assim:
+  import { PrismaClient } from "@prisma/client";
+
+export const prisma = new PrismaClient()
+
+agorade volta ao app a gente da um await prisma ( e tem cuidado de pegar o prisma de dentro do arquivo prisma que esta na lib que criamos) damos um ponto e conrl espaço e ele ja encontra as nossas tabelas ai a gente da um create abre um objeto e passa data, e vai colocando as nossas informações que a gente pegou do body. fica assim:
+await prisma.user.create({
+    data: {
+      name,
+      email,
+      password_hash: password,
+    },
+  })
+
+  agora damos um return reply.status(201).send()
+  o app.ts ficou assim:
+  import fastify from 'fastify'
+import { z } from 'zod'
+import { prisma } from './lib/prisma'
+
+export const app = fastify()
+
+app.post('/users', async (request, reply) => {
+  const registerBodySchema = z.object({
+    name: z.string(),
+    email: z.string().email(),
+    password: z.string().min(7),
+  })
+
+  const { name, email, password } = registerBodySchema.parse(request.body)
+
+  await prisma.user.create({
+    data: {
+      name,
+      email,
+      password_hash: password,
+    },
+  })
+  return reply.status(201).send()
+})
+
+agora vamos testar.
+vamos rodar o docker e o servidor e vamos no insomnia
+a gente cria uma nova colection e nela a gente cria uma nova requisição para o localhost 3333/users
+e mandamos isso no body:
+{
+	"name": "iuri",
+	"email": "iuri@hotmail.com",
+	"password": "minimo7letras"
+}
+
+fucnionou.
+voltamos para o lib/prisma.ts
+e dentro do nosso prisma a gente pode passar um objeto com varias coisas a gente vai passar o log e nele o query 
+export const prisma = new PrismaClient({
+    log: ['query']
+})
+porem a gente vai abilidat ele apenas para o ambiente de dev então vamos pegar o env e a gente vai colocar que se o node_env for dev o log vai ser query se não vai ser vazio assim:
+  log: env.NODE_ENV === 'dev' ? ['query'] : [],
+com isso quando a gente fizer algo no banco de dados o prisma mostra o que ele fez ao adicionar um usuario ele mostra isso:
+2023-09-27 14:13:40 proj3-api-solid-pg-1  | 2023-09-27 12:13:39.851 GMT [110] STATEMENT:  INSERT INTO "public"."users" ("id","name","email","password_hash","created_at") VALUES ($1,$2,$3,$4,$5) RETURNING "public"."users"."id", "public"."users"."name", "public"."users"."email", "public"."users"."password_hash", "public"."users"."created_at"
+
+o log para mim apareceu no docker desktop e não no terminal.
+
+
 
 
 
