@@ -631,7 +631,71 @@ export async function appRoutes(app: FastifyInstance) {
 e no app eu adiciono essa linha com a importação dela:
 app.register(appRoutes)
 
+com isso funcionando a gente vai ovoltar para o nosso arquivo controller e vamos começar a separar o codigo dele. porque vamos começar a enxergar essa aplicação em camadas.  ou seja independente de qual porta de entrada seja feita um cadastro por exemplo, a logica para o cadastro deve ser sempre a mesma, ele vempre vai precisar passar o nome email e senha, a senha sempre vai ser hashiada com a mesma força e etc.
+ou seja : a parte de validação do schema é uma camada, a inserção do que foi validado no bancode dados é outra camada.
 
+# hash da senha
+antes de separa o codigo vamos logo fazer essa funcionalidade de criação de usuario com mais coisas.
+vamos instalar o bcrypt js
+npm i bcryptjs
+precisamos tambem instalar separadamente o types
+npm i -D @types/bcryptjs
+então la no nosso arquivo register a gente vai importar do bcrypt o modo hash
+
+agora ao inves de salvar a senha do usuario dentro de password hash a gente vai criar um hash usando o metodo has que importamos/.
+o hash retorna uma promisse enãot temos que usar o await. passamos o password para dentro do ahash e o segundo parametro vai ser a quantidade de rounds
+nos vamos fazer uma const password_hash = await hash(password,)
+o hash gera um dado impossivel de reverter mas ele usa esse dado com base em algo pode ser o salrt ou os rounds qjuanto mais round a gente fizer mais dificil é de quebrar ele porem é mais pesado para a aplicação fazer.
+se a gente usa ele para algo que a aplicação faz sempre pode pesar. para a maioria usamos 6 rounds e ja ta otimo.
+
+vamos so um parenteses entrar no eslint.json e colocar uma regra de camelcase off fica assim:
+{
+    "extends": [
+        "@rocketseat/eslint-config/node"
+    ],
+    "rules": {
+        "camelcase": "off"
+}
+}
+
+agora voltamos.
+trocamos da criação de usuario oa designação de password e passamos so o password hash pq ele ja vai estar pegando corretamente e passando pelo hash. a pagina fica assim:
+import { prisma } from '@/lib/prisma'
+import { hash } from 'bcryptjs'
+import { FastifyReply, FastifyRequest } from 'fastify'
+import { z } from 'zod'
+
+export async function register(request: FastifyRequest, reply: FastifyReply) {
+  const registerBodySchema = z.object({
+    name: z.string(),
+    email: z.string().email(),
+    password: z.string().min(7),
+  })
+
+  const { name, email, password } = registerBodySchema.parse(request.body)
+
+  const password_hash = await hash(password, 6)
+
+  await prisma.user.create({
+    data: {
+      name,
+      email,
+      password_hash,
+    },
+  })
+  return reply.status(201).send()
+}
+
+agora abaixo do constque faz o hash nos vamos validar se tem algum usuario com o mesmo email. a gente vai fazer uma const e vamos igualar ela a await prisma.user.findUnique que vai procurar um registro unico na tabela agora podemos passar um where para dizer onde ele deve procudar. mas sabendo que o find unique so procura em registros da tabela que nos colocamos a flag unique ou então que são cave primaria.
+vamos procurar pelo email e caso a conste exista ou seja caso ela achealgum email ja existente a gente vai retornar o status 409 que é usado como algo que o registroesta duplicado. essa parte fica assim:
+  const userWithSameEmail = await prisma.user.findUnique({
+    where: { email },
+  })
+  if (userWithSameEmail) {
+    return reply.status(409).send()
+  }
+  agora a gente ta vendo que essa camada do core do controller esta ficando ada vez maior. então a parte que não muda sempre que a gente for fazer um usuario, que a gente vai ter que copiar e colar e sta cada vez maior. vamos começar em breve a pensar em coisas para sair desse local de core para que não precisemos repetir ela.
+  
 
 
 
