@@ -695,7 +695,97 @@ vamos procurar pelo email e caso a conste exista ou seja caso ela achealgum emai
     return reply.status(409).send()
   }
   agora a gente ta vendo que essa camada do core do controller esta ficando ada vez maior. então a parte que não muda sempre que a gente for fazer um usuario, que a gente vai ter que copiar e colar e sta cada vez maior. vamos começar em breve a pensar em coisas para sair desse local de core para que não precisemos repetir ela.
-  
+  nos vamos separar essa parte que vai ser indispensavel em toda criação de usuario em uma nova pasta que vamos criar. podemos chalar ela de services ou use-cases
+  e vamos fazer ela no src
+  vamos pegar essa parte do register:
+   const password_hash = await hash(password, 6)
+
+  const userWithSameEmail = await prisma.user.findUnique({
+    where: { email },
+  })
+  if (userWithSameEmail) {
+    return reply.status(409).send()
+  }
+
+  await prisma.user.create({
+    data: {
+      name,
+      email,
+      password_hash,
+    },
+  })
+ 
+
+  dentgro da pasta use-case vamos tambem abrir um arquivo chamado de register.ts vamos exportar uma função assincrona chamada registerUseCAses e colar o nosso codigo dentro dela. e fazer as importações necessarias.
+  agora precisamos receber as coisas como o password o email etc entéao vamos criar uma interface RegisterUseCaseParams {}
+  e passamos name email e password como strings. agora na função vamos receber um objeto como name email e password e ele vai ser tipado pela interface que criamos.
+  isso ja para a maioria dos erros, maisainda temos o erro do reply.
+  o reply é algo expecifico do fastify e de uma requisição http mas a gente ta tentando criar algo desacoplado das requisições http ,  gente quer que ele posssa surgir de outra forma que não seja a requisição então não faz sentido a gente usar o reply ali porque talvez ele saia para algo que não aceite o reply, se não for algo http.
+  então nos vamos substituir isso por uma oitra forma de disparar o erro. podemos usar um throw new error email already exist e depois quando a gente for chamar ele no nosso register a gente chaam por um try catch e dessa forma ele pegaria o erro e daria um reply http quando fosse chamado de forma http, de outras formas ele pegaria esse erro de forma diferente. que não vamos fazer aqui.
+  o codigo do useCases fica assim:
+  import { prisma } from '@/lib/prisma'
+import { hash } from 'bcryptjs'
+
+interface RegisterUseCaseParams {
+  name: string
+  email: string
+  password: string
+}
+
+export async function registerUseCase({
+  name,
+  email,
+  password,
+}: RegisterUseCaseParams) {
+  const password_hash = await hash(password, 6)
+
+  const userWithSameEmail = await prisma.user.findUnique({
+    where: { email },
+  })
+  if (userWithSameEmail) {
+    throw new Error('Email already exists.')
+  }
+
+  await prisma.user.create({
+    data: {
+      name,
+      email,
+      password_hash,
+    },
+  })
+}
+
+e agora no controller vamos chamar ele assim em um try passando o nome email e senha e no caso de pegar um erro a gente passa o return reply com o status 409 e se a gente quiser a gente pode mandar dentro do send uma message: err.message para pegar a mensagem que escrevemos la no erro. mas não vamos fazer isso porqe depois vamos mudar.fica assim a pagina:
+import { registerUseCase } from '@/use-cases/register'
+import { FastifyReply, FastifyRequest } from 'fastify'
+import { z } from 'zod'
+
+export async function register(request: FastifyRequest, reply: FastifyReply) {
+  const registerBodySchema = z.object({
+    name: z.string(),
+    email: z.string().email(),
+    password: z.string().min(7),
+  })
+
+  const { name, email, password } = registerBodySchema.parse(request.body)
+
+  try {
+    await registerUseCase({
+      name,
+      email,
+      password,
+    })
+  } catch (err) {
+    return reply.status(409).send()
+  }
+
+  return reply.status(201).send()
+}
+
+agora em qualquer lugar de nossa aplicação que a gente queira registrar um usuario de qualquer forma que a gente quiser a gente so presia chamar o nosso registerUseCase e passar para ele nome email e password que ele vai criar.
+
+
+
 
 
 
