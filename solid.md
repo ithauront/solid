@@ -783,7 +783,70 @@ export async function register(request: FastifyRequest, reply: FastifyReply) {
 }
 
 agora em qualquer lugar de nossa aplicação que a gente queira registrar um usuario de qualquer forma que a gente quiser a gente so presia chamar o nosso registerUseCase e passar para ele nome email e password que ele vai criar.
+sempre ue a gente separa algo no nosso codigo é interessante ter um bom motivo para essa separaão porque se não a gente pode acabar complicando o codigo. o caso acima tinha um bom motivo. e agora do ueCases nos vamos separar a conexão com o banco de dados. isso tambem vai em breve ter bos motivos para isso. para fazer isso nos vamos criar uma pasta chamada repositories e dentro del vamos criar um arquivo chamado prisma-users(o nome da tabel que estamos usando)-repository.ts
+dentro dele nos vamos exportar uma classe chamada prismaUserRepositories e dentro dele vamos ter varios metodos que vão interceptar ou ser as portas de entrada para qualquer importação que a gente for fazer no banco de dados então todas as alterações no banco de dados vao passar pelo repositories.
+a primeira que a gente vaicolocar vai ser a que a gente vai tirar do useCases para criar o usuario
+a gente da um async create(data) { e qui dentro a gente passa o que a gente pegou do useCase que é isso:await prisma.user.create({
+    data: {
+      name,
+      email,
+      password_hash,
+    },
+  })}
+  importamos o prisma 
+  para não ter que repetir tudo que tem la passando os email nome e tudo mais, o prisma ja tipificou para a gente o que podemos usar no create metod no users ou seja ele sabe que tem que passar name email e password-hash
+  então no data que a gente esta passando par a a função a gente pode tipar ele com : userCreateInput e ele vai ter a tipagem necessaria. a gente vai impoortar o Prisma com P maiusculo para isso tambem e agora a gente pode passar o data inteiro para a criação sem precisar desetrutirar. vamos tamber transformar essa criação em uma cont para poder devolver ela. fica assim:
+  import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 
+export class prismaUsersRepositories {
+  async create(data: Prisma.UserCreateInput) {
+    const user = await prisma.user.create({
+      data,
+    })
+    return user
+  }
+}
+
+agora no register a gente precisa instanciar essa classe para poder trabalhar com o user então vamos fazer uma const PrismaUserRepositorie = new PrismauserRepositorie
+ const prismaUsersRepositories = new PrismaUsersRepositories()
+ e agora a gente pode chamar o prismaUsersRepoistoris.create e passar para ele os valores de name email e password por ser umùa promisse temos que dar await antes
+ fica assim:
+ import { prisma } from '@/lib/prisma'
+import { PrismaUsersRepositories } from '@/repositories/prisma-user-repositories'
+import { hash } from 'bcryptjs'
+
+interface RegisterUseCaseParams {
+  name: string
+  email: string
+  password: string
+}
+
+export async function registerUseCase({
+  name,
+  email,
+  password,
+}: RegisterUseCaseParams) {
+  const password_hash = await hash(password, 6)
+
+  const userWithSameEmail = await prisma.user.findUnique({
+    where: { email },
+  })
+  if (userWithSameEmail) {
+    throw new Error('Email already exists.')
+  }
+
+  const prismaUsersRepositories = new PrismaUsersRepositories()
+
+  await prismaUsersRepositories.create({
+    name,
+    email,
+    password_hash,
+  })
+}
+
+uma das vantagens de usar o repositorie pattern é que no futuro se a gente não trabalhar mais com o prims por exemplo vai ficar mais facil para mudar porque so o repositorio vai ter codigo relacionado com o prisma, fica menos arquivos para mexer porque eles são os unicos arquivos que vao ter contato com o banco de dados.
+mas ainda tem outras vantagens que vamos ver em brreve.
 
 
 
