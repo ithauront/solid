@@ -577,6 +577,62 @@ com isso quando a gente fizer algo no banco de dados o prisma mostra o que ele f
 
 o log para mim apareceu no docker desktop e não no terminal.
 
+# controller
+o controller é o nome dado a função que lida co a entrada de dados por uma requisição http e devolve uma resposta. ou seja por exemplo a nossa função de adicionar usuaio.
+o controller geralmente esta associado a uso de um framework como fastify, knex e outros.
+vamos criar uma pasta chamada http e tudo que tiver a ver com o http de nossa aplicação vamos mover para la. no caso a função que posta no users a partir do async vai para la.dentro de http vamos criar uma outra pagina chamada de controler e dentro dessa pasta vamos criar um arquivo chamado register.ts
+nesse arquivo nos vamos colar a função mas dando o export antes e escrevendo function e tambem o nome dela, ou seja tirando de arrow function. importamos o z e o  
+porem como vem de outro arquivo ele não sabe o que é o reply e o request.
+entéao temos que importar o fastifyrequest e reply de dentro deo fastyvfi e a gente coloca esses tipos no request e reply. fica assim:
+import { prisma } from '@/lib/prisma'
+import { FastifyReply, FastifyRequest } from 'fastify'
+import { z } from 'zod'
+
+export async function register(request: FastifyRequest, reply: FastifyReply) {
+  const registerBodySchema = z.object({
+    name: z.string(),
+    email: z.string().email(),
+    password: z.string().min(7),
+  })
+
+  const { name, email, password } = registerBodySchema.parse(request.body)
+
+  await prisma.user.create({
+    data: {
+      name,
+      email,
+      password_hash: password,
+    },
+  })
+  return reply.status(201).send()
+}
+
+agora la no app a gente coloca o register no lugar da funçã que tiramos.
+import fastify from 'fastify'
+
+import { register } from './http/controller/register'
+
+export const app = fastify()
+
+app.post('/users', register)
+
+com cuidado para ter importado ele do lugar certo.
+
+vamos então tirar as rotas do arquivo app. la no http vamos criar um arquivo routes.ts e mover a nossa rota post paa la. como esse arquivo precisa ser uma função tambem nos vamos escrever como export function appRoutes fica assim:
+
+import { FastifyInstance } from 'fastify'
+import { register } from './controller/register'
+
+export async function appRoutes(app: FastifyInstance) {
+  app.post('/users', register)
+}
+
+
+e no app eu adiciono essa linha com a importação dela:
+app.register(appRoutes)
+
+
+
 
 
 
