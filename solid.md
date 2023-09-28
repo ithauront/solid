@@ -847,6 +847,141 @@ export async function registerUseCase({
 
 uma das vantagens de usar o repositorie pattern é que no futuro se a gente não trabalhar mais com o prims por exemplo vai ficar mais facil para mudar porque so o repositorio vai ter codigo relacionado com o prisma, fica menos arquivos para mexer porque eles são os unicos arquivos que vao ter contato com o banco de dados.
 mas ainda tem outras vantagens que vamos ver em brreve.
+da foprma que estamos a gente não onseguiria migrar para outro serviço a parte do prisma ou outro banco de pque a gente teria que ir para todos os nossos casos de uso e mudar  chamada dos repositorios em todos os casos de uso (que no futuro podem ser muitos.)
+mas agora a gente vai ver os principios solid que podem mudar um pouco isso.
+solid é dividido em 5 principios vamos falar deles mas o ultimo é o d
+dependenci inversion principle
+o nosso caso de uso tem uma dependencia no repoositorio do prisma
+se o nosso repositorio do prisma não existe o nosso caso de uso para de fucnionar.
+# inversão de dependencia
+nos vmos mudar como o nosso caso de uso tem acesso a dependencia
+hj ele esta instanciando o repositorio que ele precisa mas isso traz essa dependencia
+com esse principio a gente vi inverter a ordem de como a dependencia chega, ao invez de instanciar a gente vai receber ela como paramentro. porem se a gente receber ela la na função com os outros parametros pode ficar bagunçado então geralmente a gente vai
+nos vamos fazer uma class chamada registerUseCase {} e a gente pega toda nossa função registerUseCase e joga la dentro so que tira o export function, deixa so o assync, e troca o nome da função para algo como execute ou handle ou algo assim 
+e cada classe de caso de uso vai ter apenas um unico metodo.
+mas o que mudou?
+com essa classe a gente pode, fazer um construtor
+constructor () {}
+e dentro desse construtor a gente pode colocar nossas dependencias, assim ao ivez de nossa função instanciar as dependencias que ela precisa, ela vai receber as dependencias como parametro, por isso é inversão de dependencia.
+dentro do construtor nos vamos receber o userRepositorie e o tipo dele por euqnaitp vai ser any. para que um parametro vire automaticamete uma propriedade daz classe a gente coloca uma palavra de visibilidade na frente dele, como por exemplo private ou public
+então vamos colocar private usersRepository
+ele vai dizer que o construtor é inutil porque não tem nada dentro das chaves, mas isso é um falso negativo a gente pode ir la no eslint e desabilitar isso no rules
+{
+    "extends": [
+        "@rocketseat/eslint-config/node"
+    ],
+    "rules": {
+        "camelcase": "off",
+        "no-useless-constructor": "off"
+}
+}
+
+agora a gente tira a instanciação do userrepository e no await a gente tira o prismaserrepositorie e coloca this.userRepository pegando o que a gente construiu na classe.
+fica assim, com a retirada da instanciação em comentario para ficar facil de identificar:
+import { prisma } from '@/lib/prisma'
+import { PrismaUsersRepository } from '@/repositories/prisma-user-repositories'
+import { hash } from 'bcryptjs'
+
+interface RegisterUseCaseParams {
+  name: string
+  email: string
+  password: string
+}
+class RegisterUseCase {
+  constructor(private usersRepository: any) {}
+
+  async execute({ name, email, password }: RegisterUseCaseParams) {
+    const password_hash = await hash(password, 6)
+
+    const userWithSameEmail = await prisma.user.findUnique({
+      where: { email },
+    })
+    if (userWithSameEmail) {
+      throw new Error('Email already exists.')
+    }
+
+   // const prismaUsersRepositories = new PrismaUsersRepository()
+
+    await this.usersRepository.create({
+      name,
+      email,
+      password_hash,
+    })
+  }
+}
+
+vamos agora exportar a classe e a gente ja pode apagar a importação do prisma
+em breve vamos modificar a parte do email para que não tenha nenhuma mais referencia ao prisma. porem a parte de insersão no banco de dados ja esta independente do prisma.
+agora o arquivo que precisar do n osso caso de uso como o controllet vamos comocar o R maiusculo porque é uma classe
+e no momento que a gente for usar ela, no caso no try a gente vai instanciar e vamos passar as dependencias ou seja instanciamos tambem o prisma userRepositories e passamos ele para dentro da nossa instanciação do registerUseCase e damos um await registerUseCase.execute 
+recaptulado as duas paginas fica assim, a useCases:
+import { prisma } from '@/lib/prisma'
+
+import { hash } from 'bcryptjs'
+
+interface RegisterUseCaseParams {
+  name: string
+  email: string
+  password: string
+}
+export class RegisterUseCase {
+  constructor(private usersRepository: any) {}
+
+  async execute({ name, email, password }: RegisterUseCaseParams) {
+    const password_hash = await hash(password, 6)
+
+    const userWithSameEmail = await prisma.user.findUnique({
+      where: { email },
+    })
+    if (userWithSameEmail) {
+      throw new Error('Email already exists.')
+    }
+
+    await this.usersRepository.create({
+      name,
+      email,
+      password_hash,
+    })
+  }
+}
+
+
+e a controller
+import { PrismaUsersRepository } from '@/repositories/prisma-user-repositories'
+import { RegisterUseCase } from '@/use-cases/register'
+import { FastifyReply, FastifyRequest } from 'fastify'
+import { z } from 'zod'
+
+export async function register(request: FastifyRequest, reply: FastifyReply) {
+  const registerBodySchema = z.object({
+    name: z.string(),
+    email: z.string().email(),
+    password: z.string().min(7),
+  })
+
+  const { name, email, password } = registerBodySchema.parse(request.body)
+
+  try {
+    const prismaUsersRepositories = new PrismaUsersRepository()
+    const registerUseCase = new RegisterUseCase(prismaUsersRepositories)
+    await registerUseCase.execute({
+      name,
+      email,
+      password,
+    })
+  } catch (err) {
+    return reply.status(409).send()
+  }
+
+  return reply.status(201).send()
+}
+
+ou seja o arquivo que vai fazer uso do useCase é ele que vai enviar a conexão com o prsma ou qualquer plataforma que a gente esteja usando para os use cases, assim caso a gente precise mudar, mudamos apenas nesses arquivos. e os nossso useCases continuam inalterados.
+então caso um dia a gente altere do prisma para outro repositorio, apos criar o novo repositorio so precisaremos trocar essas duas linhas
+ const prismaUsersRepositories = new PrismaUsersRepository()
+    const registerUseCase = new RegisterUseCase(prismaUsersRepositories) // the file that need a useCase is the file that will send the dependencies as params to the useCase
+   
+e o nosso app funcionara.
 
 
 
