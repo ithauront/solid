@@ -983,6 +983,136 @@ então caso um dia a gente altere do prisma para outro repositorio, apos criar o
    
 e o nosso app funcionara.
 
+nosso use case esta independente do userrepository porem seria interessante que ele soubesse pelo menos quais metodos existem e quais conteudos esses metodos vao receber. isso não atrapalha sua independencia.
+então vamos criar uma interface na pasta repositories chamada users-repository.ts
+isso porque nessa linha aqui do useCase
+export class RegisterUseCase {
+  constructor(private usersRepository: any) {}
+  a gente podia colocar no lugar de any um PrismaUsersRepoitory que ja existe, porem ai o usecase ia conhecer a implementação do prisma e ia voltar a ficar dependente.
+  então o nosso users-repository vai ser apenas uma interface (pode ser encontrado tambem como uma classe abstrata mas aqui é melhor usar uma interface)
+  essa interface vai dizer quais metodos vão ser utilizados; quais parametros ele vai receber e ela vai devolver uma promisse com um User fica assim:
+  import { Prisma, User } from '@prisma/client'
+
+export interface UsersRepository {
+  create(data: Prisma.UserCreateInput): Promise<User>
+}
+
+agora no use case nos vamos trocar o any que a gente citou logo acima por usersRepository
+
+agora o create esta tipado então la no fim ele ja sugere.
+
+so que la no nosso register controle quando nos instanciamos o nosso prisma
+
+quando a gente usa ele da certo. porem dentro do prisma repository se a gente entra no prismaUserRepository não colocar o metodo create ele não aponta erro, porem esse erro aconteceria ele precisa do metodo create.
+então nos repositoriso que a gente quer que siga isso a gente precisa implementear o usersRepository. fica assim:
+
+import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
+import { UsersRepository } from './users_repository'
+
+export class PrismaUsersRepository implements UsersRepository {
+  async create(data: Prisma.UserCreateInput) {
+    const user = await prisma.user.create({
+      data,
+    })
+    return user
+  }
+}
+
+
+assim se a gente tirar o asyc create ele aponta o erro e ele pode ate sugerri o metodo para resolver.
+para organizar dentro da pasta repositories nos vamos criar uma pasta prisma e jogar as coisas relacionadas ao prisma nela. as importaç éoes devem ser atualizadas automaticamente mas se não so tem no proprio prisma repositorie e no register.
+
+vamos agora mover o metodo de bustcar um usuario pelo email para dentro do repositorio porque a gente ão quer nenhuma menção ao prisma no useCases.
+esse é o metodo em questão que esta no useCase
+ const userWithSameEmail = await prisma.user.findUnique({
+      where: { email },
+    })
+    if (userWithSameEmail) {
+      throw new Error('Email already exists.')
+    }
+
+
+então vamos la no usersRepository e sempre começamos pela interface porque ela que diz quais metodos vão xistir. ela é o contrato.
+no repositorio a gente cria metodos mais expecificos enão o nome vai ser findByEmail
+a gente procura por email, recebe ul email que é uma string e devolve uma promisse user ou se não encontrar volta nulo fica assim:
+import { Prisma, User } from '@prisma/client'
+
+export interface UsersRepository {
+  findByEmail(email: string): Promise<User | null>
+  create(data: Prisma.UserCreateInput): Promise<User>
+}
+
+
+agora vamos la no repositorioPrisma
+como ele ta implementando o contrato da interface ele ja esta apontando um erro. se a gente der um cntrl +  ele ja cria uma versão do que devemos colocar/
+ele nos da isso
+  findByEmail(email: string): Promise<{ id: string; name: string; email: string; password_hash: string; created_at: Date } | null> {
+    throw new Error('Method not implemented.')
+  }
+  a gente coloca um async na frente
+  retira o retorno e tambem o erro e vamos dentro dele passar o codigo que temos no caso de uso. acaba que a pagina fica assim:
+  import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
+import { UsersRepository } from '../users_repository'
+
+export class PrismaUsersRepository implements UsersRepository {
+  async findByEmail(email: string) {
+    const user = await prisma.user.findUnique({
+      where: { email },
+    })
+
+    return user
+  }
+
+  async create(data: Prisma.UserCreateInput) {
+    const user = await prisma.user.create({
+      data,
+    })
+    return user
+  }
+}
+e na pagina do useCase a gente vai tirar a parte  que a gente copiou para usar o metodo do repositorio: fica assim:
+ const userWithSameEmail = await this.usersRepository.findByEmail(email)
+
+    if (userWithSameEmail) {
+      throw new Error('Email already exists.')
+    }
+
+    a pagina completa:
+
+    import { prisma } from '@/lib/prisma'
+import { UsersRepository } from '@/repositories/users_repository'
+
+import { hash } from 'bcryptjs'
+
+interface RegisterUseCaseParams {
+  name: string
+  email: string
+  password: string
+}
+export class RegisterUseCase {
+  constructor(private usersRepository: UsersRepository) {}
+
+  async execute({ name, email, password }: RegisterUseCaseParams) {
+    const password_hash = await hash(password, 6)
+
+    const userWithSameEmail = await this.usersRepository.findByEmail(email)
+
+    if (userWithSameEmail) {
+      throw new Error('Email already exists.')
+    }
+
+    await this.usersRepository.create({
+      name,
+      email,
+      password_hash,
+    })
+  }
+}
+
+agora nosso useCase esta livre do prisma.
+
 
 
 
