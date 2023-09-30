@@ -1114,7 +1114,63 @@ export class RegisterUseCase {
 agora nosso useCase esta livre do prisma.
 
 
+# erros no use case
+vqamos melhorar a tratativa de erros no ue case no momento so ta dandi o trhow no caso do email.
+para qualque erro a gente retorna o mesmo status^pode ser ruim  poem acontecer varios tipos de erro diferentes.
+existem varias possibilidades para resolver isso; a que a gente vai usar vai ser criar uma pasta chamada erros e ter arquivos para cada tipo de erro na aplicação. a pasta erros ficar dentro do useCase
+nela vamos criar um arquivo chamado userAlreadyExists.ts
+dentro dele a gente exporta uma classe com o nome do erro e com erro no fim para onde a gente ver ela sendo usada saber que é um erro. ela vai extender a classe error que é uma classe preexistente do java script.
+dentro dessa classe a gente so vai chamar o constructor e esse constructor vai ser o super que é algo que ja existe na classe error e dentro dele a gente so vai passar a msg user already exists.
+    export class UserAlreadyExistsError extends Error {
+  constructor() {
+    super('E-mail already exists')
+  }
+}
 
+ai agora la no uso de caso ao inves de dar um thrown new error a gente da um trhow nez UserAlreadyExistError.
+ if (userWithSameEmail) {
+      throw new UserAlreadyExistsError()
+    }
+
+    agora no nosso controler a gente poder fazer um 
+    if o erro for uma instancia de userAlreadyExistsError a gente retorna o status 409 e na mssage do send a gente colocar oa messagem que tinha no error. e se não for a gente dar um return status 500 por enquanto depois a gente ajeita isso. fica assim:
+    import { PrismaUsersRepository } from '@/repositories/prisma/PrismaUsersRepository'
+import { UserAlreadyExistsError } from '@/use-cases/errors/user-already-exists'
+import { RegisterUseCase } from '@/use-cases/register'
+import { FastifyReply, FastifyRequest } from 'fastify'
+import { z } from 'zod'
+
+export async function register(request: FastifyRequest, reply: FastifyReply) {
+  const registerBodySchema = z.object({
+    name: z.string(),
+    email: z.string().email(),
+    password: z.string().min(7),
+  })
+
+  const { name, email, password } = registerBodySchema.parse(request.body)
+
+  try {
+    const prismaUsersRepositories = new PrismaUsersRepository()
+    const registerUseCase = new RegisterUseCase(prismaUsersRepositories) // the file that need a useCase is the file that will send the dependencies as params to the useCase
+    await registerUseCase.execute({
+      name,
+      email,
+      password,
+    })
+  } catch (err) {
+    if (err instanceof UserAlreadyExistsError) {
+      return reply.status(409).send({message : err.message})
+    }
+    return reply.status(500).send() //TODO fixthis
+  }
+
+  return reply.status(201).send()
+}
+
+perceba a mudança perto do todo fixthis.
+
+agoracom isso a gente vai fazer ao longo da aplicação sempre uma esturtura parecida com isso.
+agora que ja sabemos um pouco de inversão de dependencia cvamos começar a colocar testes. e é com testes que vamos vizuqalisar melhot o porque a inversão de dependencia é tão necessaria.
 
 
 
