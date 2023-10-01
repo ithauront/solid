@@ -1172,6 +1172,60 @@ perceba a mudança perto do todo fixthis.
 agoracom isso a gente vai fazer ao longo da aplicação sempre uma esturtura parecida com isso.
 agora que ja sabemos um pouco de inversão de dependencia cvamos começar a colocar testes. e é com testes que vamos vizuqalisar melhot o porque a inversão de dependencia é tão necessaria.
 
+antes de ir para os testes  vamos resolver o como lidar com outros tipos de erro na aplicaà
+o nosso register esta com sse TODO fix this
+ou seja se acontecer qualqquer erro que não seja conhecido e ele não vai ter sido tratado.
+então se não for um erro conhecido nos vamos dar um trhow no erro. ou seja
+se o erro não for conhecido apesar de a gente estar em uma tratativa de erro a gente vai estar dizendo que néqo wueremos tratar esse erro, vamos deixar para uma outra camada tratar esse erro. e se a gente fizer isso no lugar dessa linha
+ return reply.status(500).send() //TODO fixthis
+  }
+
+  ele vai retornar um erro e dizer o que esse erro é isso porque nesse caso o fastify vai estar tratando esse erro automaticamente na trata^ão de erro interna dela.
+  porem as vezes essa tratativa não é tão boa então nos vamos criar ulm error handler para tratar globalmente os erros na aplicação.
+  então vamos no app, depois das rotas e vamos colocar um 
+  app.setErrorHandler dentro dele vamos passar o error o request e o  reply
+  fica assim:
+  import fastify from 'fastify'
+import { appRoutes } from './http/routes'
+
+export const app = fastify()
+
+app.register(appRoutes)
+
+app.setErrorHandler((err, request, reply) => {
+    
+})
+
+agora dentro dele vamos começar a passar algumas coisas
+se for um erro originario de uma validação if(error instanceOf ZodError) e gente retorna um status 400 ou seja um bad request e vamos enviar no copo uma message de validation error e dentro de issues o format (ou seja o formato do errO) 
+    if(error instanceof ZodError) {
+        return reply.status(400)
+        .send({message: "Validation error", issues:error.format()})
+    }
+  de fazer isso eles ja aparecem de uma forma um pouco melhor. fica mais facil de entender o porque do erro
+  porem se não for um erro de validação ainda não esta tratando e ai vai ficar um loop infinito porque ele não tem onde cair.
+
+  por isso se o erro caiu até aqui é porque realmente é um erro desconhecido então nos vamos colocar apenas um return reply.status(500).SEND(message:"internal server error")
+  podem cair erros nesses mas vao ser mais rarros e a gente não tem como prever todos os erros possiveis.
+  então a gente quer manter a habilidade de tratar esses erros.
+  para tratar isso nos vamos puxar um if o Node_env (com cuidado pra chamar do lugar certro que é o que a gente criou) for diferente de production a gente vai dar um console.error. fica assim:
+  app.setErrorHandler((error, request, reply) => {
+  if (error instanceof ZodError) {
+    return reply
+      .status(400)
+      .send({ message: 'Validation error', issues: error.format() })
+  }
+  return reply.status(500).send({ message: 'Internal server error' })
+  if (env.NODE_ENV !== 'production') {
+    console.error(error)
+  }
+})
+agora no terminal caso néao esteja em produção nos vamos ver o erro no terminal vendo onde aconteceu e tudo mais. porem em produção não faz sentido deixar o console.error porque a gente não vai ficar omhando o terminal.
+por isso em else mas não vamos fazer agora então vamos deixar como comentario para o futuro fazer um log em alguma outra ferramenta que usaria isso como datadog ou newrelic. que s ão gferramentes de observabilidade que nos enviaraim quais erros eséoa acontecendo
+no lugar do request um underline qao esta usando a gente pode colocar um underline que ele entendeo como um parametro não usado.
+no caso vamos substituir o request por um underline.
+o codigo do app fica assim e agora a gente trabalha com os erros de forma global.
+
 
 
 
