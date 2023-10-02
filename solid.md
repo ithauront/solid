@@ -1226,6 +1226,47 @@ no lugar do request um underline qao esta usando a gente pode colocar um underli
 no caso vamos substituir o request por um underline.
 o codigo do app fica assim e agora a gente trabalha com os erros de forma global.
 
+# testes
+vamos começar a escrever testes. é importante ir fazendo eles ao mesmo tempo que vamos fazndo a aplicaçéao. não da pra finalizar a aplicaçéao e depois fazer os testes.
+para isso vamos istanar o vitest com um plugin para ele entender os paths que a gente fez com o @ no inisial
+npm i vitest vite-tsconfig-paths -D
+
+agora na raiz vamos criar um arquivo chamado vite.config.ts
+e la vamos exportar uma finção chamada defineConfig como default nos vamos importar ela do vite/config
+e dentro dela vamos passar um objeto e la vamos passar plugins como tsconifgpaths que é o pluging que vamos importar de dentro do vite-tsconfig-paths e vamos passar um parenteses nele pra dizer que é função
+fica assim:
+import { defineConfig } from 'vitest/config'
+import tsconfigpaths from 'vite-tsconfig-paths'
+export default defineConfig({
+  plugins: [tsconfigpaths()],
+})
+
+
+agora o vitest ja vai entender os endereços que passamos.
+
+vamis agora no package.json e vamos criar um script test um chamado test para ele testar todos os testes sem ficar dando watch e outro test:watch que vai roadr so vitest assim cada mudança que a gente fizer ele vai observar.
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsup src --out-dir build",
+    "start": "node build/server.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+
+  agora para testar nos camos nos casos de uso pasta e vamos criar um arquivo chamado register.spec.ts
+  e não vamos fazer um teste real agora, é so para testar.
+  vamos importar o { test } de vitest
+  e vamos fazer um test assim:
+  import { expect, test } from 'vitest'
+
+test('check if it works', () => {
+  expect(2 + 2).toBe(4)
+})
+
+agora se a gente der um npm run test ele deve testar isso e dizer s falha ou não e se a gente der um npm run test:watch ele deve ficar observando e se a gente mudar algo ele deve acusar.
+a função com watch não funciona comigo e fica dando falsos positivos. eu não sei porque mas meu node parece ter um roblema para rodar com watch então vamos se consocentrar em sempre dar kill no test e rodar ele novamente.
+
+
 
 
 
