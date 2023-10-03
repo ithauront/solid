@@ -1266,6 +1266,184 @@ test('check if it works', () => {
 agora se a gente der um npm run test ele deve testar isso e dizer s falha ou não e se a gente der um npm run test:watch ele deve ficar observando e se a gente mudar algo ele deve acusar.
 a função com watch não funciona comigo e fica dando falsos positivos. eu não sei porque mas meu node parece ter um roblema para rodar com watch então vamos se consocentrar em sempre dar kill no test e rodar ele novamente.
 
+## testes
+olhando nossas regras de negocios. cada uma delas exige teste.
+vamos fazer um teste para ver se esta gerando a senha hasheada
+vamos no nosso arquivo de teste e apagamos aquele teste que fizemos. na importação fazemos tambem a importação do describe.
+e vamos usar o describe para categorizar os testes dentro dele como o register use case fica assim
+import { expect, test, describe } from 'vitest'
+
+describe('register use case', () => {
+  aqui vai o teste
+})
+
+vamos criar o teste e começar instanciado ele
+puxando o repositorio e tambem o registeUseCase
+describe('register use case', () => {
+  test('if hash user password upon registration', async () => {
+    const prismaRepository = new PrismaUsersRepository()
+    const registerUseCase = new RegisterUseCase(prismaRepository)
+  })
+})
+
+agora a gente pode dar um await registerUseCase/execute e passar os dados de um usario para ver se funciona.
+import { PrismaUsersRepository } from '@/repositories/prisma/PrismaUsersRepository'
+import { expect, test, describe } from 'vitest'
+import { RegisterUseCase } from './register'
+
+describe('register use case', () => {
+  test('if hash user password upon registration', async () => {
+    const prismaRepository = new PrismaUsersRepository()
+    const registerUseCase = new RegisterUseCase(prismaRepository)
+
+    await registerUseCase.execute({
+      name: 'Jhon Doe',
+      email: 'jhondoe@hotmail.com',
+      password: 'testpassword',
+    })
+  })
+})
+
+
+vamos fazer uma coisa que não devemos sempre fazer porque o codigo não deve se adaptar ao teste e sim o contrario. porem como nosso codigo ainda não esta copleto vamos fazer essa alteração
+vamos la no nosso use case e na criaçéao do usuario nos vamos transformar em uma const chamada user para a gente poder retornar ela depois. fica assim:
+  const user = await this.usersRepository.create({
+      name,
+      email,
+      password_hash,
+    })
+
+    return { user}
+    a gente tenta sempre retornar logo um objeto porque no futuro se ela retornar mais coisas é so adcionar ao objeto.
+    agora ainda n useCase nos vamos la em cima fazer uma interface falando o que vai ter nessa resposta. vamos dizer que ele retorna um usuario que é o nosso User que vem la do prisma.
+    RegisterUseCaseResponse {
+      user: User
+
+    }
+agora a gente vai na nossa função execute e tipa ela retornando uma promisse com a interface que a gente acabou de criar . a pagina fica assim:
+import { UsersRepository } from '@/repositories/users_repository'
+
+import { hash } from 'bcryptjs'
+import { UserAlreadyExistsError } from './errors/user-already-exists'
+import { User } from '@prisma/client'
+import { promise } from 'zod'
+
+interface RegisterUseCaseParams {
+  name: string
+  email: string
+  password: string
+}
+interface RegisterUseCaseResponse {
+  user: User
+}
+export class RegisterUseCase {
+  constructor(private usersRepository: UsersRepository) {}
+
+  async execute({
+    name,
+    email,
+    password,
+  }: RegisterUseCaseParams): Promise<RegisterUseCaseResponse> {
+    const password_hash = await hash(password, 6)
+
+    const userWithSameEmail = await this.usersRepository.findByEmail(email)
+
+    if (userWithSameEmail) {
+      throw new UserAlreadyExistsError()
+    }
+
+    const user = await this.usersRepository.create({
+      name,
+      email,
+      password_hash,
+    })
+
+    return { user }
+  }
+}
+
+agora voltamos para o nosso test e no nosso envio de informações a gente pode colocar antes dele uma const {user} = await registerCaseExecute ou seja a gente ta buscando o user que vai gerar la.
+e depois de gerar a gente pode pegar o user.password_hash que é o que queremos ver se a senha gerada realmente é uma hash.
+o que a gente pode fazer simplismente com um console.log(user.password_hash)
+se a gente testar isso dando o run test ele ja mostra que é um hash. porem esse teste ainda precisaria de um humano para olhar se funciona.
+a gente não pode descriptografar a senha mas podemos gerar um novo hash para ver se eles batem. então vamos fazer uma const isPasswordCorectlyHashed e vamos mandar para ele o metodo compare que vem la do bcrypt qque é um metodo que vai comparar uma senha que a gente vai dar com uma senhahasheada e ele vai dizer se caso a gente hasheie a nova senha que vamos dar vai ser igual a aquilo. e ele vai retornar true ou false. e ai a gente vai dar um expect isso toBe true. fica assim:
+import { PrismaUsersRepository } from '@/repositories/prisma/PrismaUsersRepository'
+import { expect, test, describe } from 'vitest'
+import { RegisterUseCase } from './register'
+import { compare } from 'bcryptjs'
+
+describe('register use case', () => {
+  test('if hash user password upon registration', async () => {
+    const prismaRepository = new PrismaUsersRepository()
+    const registerUseCase = new RegisterUseCase(prismaRepository)
+
+    const { user } = await registerUseCase.execute({
+      name: 'Jhon Doe',
+      email: 'jhondoe@hotmail.com',
+      password: 'testpassword',
+    })
+
+    const isPasswordCorectlyHashed = await compare(
+      'testpassword',
+      user.password_hash,
+    )
+    expect(isPasswordCorectlyHashed).toBe(true)
+  })
+})
+
+
+se a gente rodar esse teste multiplas vezes vai dar erro porque apos ele criar o usuario uma vez o email nõa pode mais ser usado então a gente não deve tambvem ficar mudando o email a cada vez que for fazer um teste.
+### testes unitarios
+o que a gente esta criando acima são testes unitarios qu são a base da piramide de testes. eles devem ser totalmente desconectado de suas dependencias
+ao escrever um teste unitario a gente quer testar ele so, sem as dependencias de outras camadas da aplicação
+ou seja apartir do momento que nos estamos usando o useCase  pegado o prisma repository e estanciando ele no nosso teste ele não é mais um teste unitario. ele pode ser considerad um teste de integração porque ele testa as integrações entre o repositorio e o useCase mas não um teste unitario.
+teste unitario nunca vai tocar em banco de dado ou camadas externas de nossa aplicação.
+agora nos vamos ver a principal vantagem de inversão de dependencias.
+então a inves de chamar o prisma repositry nos vamos imitar ele dentro do nosso teste.
+vamos apagar a instancia do primsa e dentro do register vamos passar um objeto com um async create(data) {
+  return { awqui vamos retornar um objeto como se fosse o usuario.}
+}
+ou seja fizemos um metodo create.
+nos colocamos tambem o metodo findByEmail e retornamos null.
+a pagina fica assim:
+import { expect, test, describe } from 'vitest'
+import { RegisterUseCase } from './register'
+import { compare } from 'bcryptjs'
+
+describe('register use case', () => {
+  test('if hash user password upon registration', async () => {
+    const registerUseCase = new RegisterUseCase({
+      async findByEmail(email) {
+        return null
+      },
+      async create(data) {
+        return {
+          id: '145781475',
+          name: data.name,
+          email: data.email,
+          password_hash: data.password_hash,
+          created_at: new Date(),
+        }
+      },
+    })
+
+    const { user } = await registerUseCase.execute({
+      name: 'Jhon Doe',
+      email: 'jhondoe@hotmail.com',
+      password: 'testpassword',
+    })
+
+    const isPasswordCorectlyHashed = await compare(
+      'testpassword',
+      user.password_hash,
+    )
+    expect(isPasswordCorectlyHashed).toBe(true)
+  })
+})
+
+e agora o teste não precisa mais do prisma nem do banco de dados nem de nada. ele esta sowinho se comparadno com o usuario ficticio que a gente criou.
+e o teste fica superrapido e pode rodar varias vezes que não vai dar o erro de não encontrar o banco de dados ou do email duplicado, porque ele não depende do banco de dados.
+claro que esse tipo de teste não vai ver possiveis erros no banco de dados. mas esse não é o papel desses testes, então vamos ter muitos testes unitarios que não vao ver o banco de dados e alguns outros menos para ver o banco de dados.
 
 
 
