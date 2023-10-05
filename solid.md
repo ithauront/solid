@@ -1445,8 +1445,127 @@ e agora o teste não precisa mais do prisma nem do banco de dados nem de nada. e
 e o teste fica superrapido e pode rodar varias vezes que não vai dar o erro de não encontrar o banco de dados ou do email duplicado, porque ele não depende do banco de dados.
 claro que esse tipo de teste não vai ver possiveis erros no banco de dados. mas esse não é o papel desses testes, então vamos ter muitos testes unitarios que não vao ver o banco de dados e alguns outros menos para ver o banco de dados.
 
+## in memory pattern 
+isso que a gente criou de fazer um repositorio ficticio é o que chamamos de in memory pattern tem textos sobre issono blog de martinfowler
+porem como nos vamos fazerdiversos testes que vao usar isso. nos podemos para não ficar refazendo essa criação fazer um outro arquivo dentro de uma pasta chamada in-memory
+esse arquivo vai se chamar in-memory-users-reporitory
+e ele vai se parecer muuito com o prisma repository colocando la o metodo find by email e create;
+dentro do vreate vamos colocar o nosso usuario.
+  return {
+          id: '145781475',
+          name: data.name,
+          email: data.email,
+          password_hash: data.password_hash,
+          created_at: new Date(),
+        }
 
+        e vamos salvar em uma const user ser isso.
+        agora na classe fazemos um public Itens: users[] = [  ] e depois de criar o user a gente da um push no array itens com esse user. fica assim:
+        import { UsersRepository } from '@/repositories/users_repository'
+import { Prisma, User } from '@prisma/client'
 
+class InMemoryUserRepository implements UsersRepository {
+  public Itens: User[] = []
+  async findByEmail(email: string): Promise<User | null> {
+    throw new Error('Method not implemented.')
+  }
+
+  async create(data: Prisma.UserCreateInput): Promise<User> {
+    const user = {
+      id: '145781475',
+      name: data.name,
+      email: data.email,
+      password_hash: data.password_hash,
+      created_at: new Date(),
+    }
+    this.Itens.push(user)
+    return user
+  }
+}
+
+agora para o email fazemos, um const user = this.user e vamos usar o find um item onde o email do item é igual ao imail que eu estou querendo buscar e se a gente não achar retornamos nulo/
+fica assim:
+import { UsersRepository } from '@/repositories/users_repository'
+import { Prisma, User } from '@prisma/client'
+
+export class InMemoryUserRepository implements UsersRepository {
+  public Itens: User[] = []
+  async findByEmail(email: string): Promise<User | null> {
+    const user = this.Itens.find((item) => item.email === email)
+    if (!user) {
+      return null
+    }
+    return user
+  }
+
+  async create(data: Prisma.UserCreateInput): Promise<User> {
+    const user = {
+      id: '145781475',
+      name: data.name,
+      email: data.email,
+      password_hash: data.password_hash,
+      created_at: new Date(),
+    }
+    this.Itens.push(user)
+    return user
+  }
+}
+
+o que a gente fez foi criar um banco de dados so no javascript usando a memoria do array/
+
+agora no test a gente pode instaniar isso e passar ela para o teste:
+import { expect, test, describe } from 'vitest'
+import { RegisterUseCase } from './register'
+import { compare } from 'bcryptjs'
+import { InMemoryUserRepository } from './in-memory/in-memory-user-repository'
+
+describe('register use case', () => {
+  test('if hash user password upon registration', async () => {
+    const userRepository = new InMemoryUserRepository()
+    const registerUseCase = new RegisterUseCase(userRepository)
+
+    const { user } = await registerUseCase.execute({
+      name: 'Jhon Doe',
+      email: 'jhondoe@hotmail.com',
+      password: 'testpassword',
+    })
+
+    const isPasswordCorectlyHashed = await compare(
+      'testpassword',
+      user.password_hash,
+    )
+    expect(isPasswordCorectlyHashed).toBe(true)
+  })
+})
+
+agora com isso se a gente for criar outro teste como não pode cadastrar o mesmo email duas vezes a gente pode copiar esse teste anterior e modificar umas coisas.
+a gente cria uma variavel eail com o email do usuario que vamos usar
+a gente chama o metodo de cadastro passando esse email uma vez. e na segunda vez que vamos usar ele deve dar erro. porque ja cadastrou com esse email uma vez e ele foi cadastrado no nosso array do in memory user repository.
+ para testar isso a gente da na segunda chamada um expect uma funç:éao e passamos os dados da criação
+ esse register é uma promisse e uùa promisse retorna duas coisas ou resolve se deu cert ou reject se deu errado.
+ enãot nesse caso nos esperamos um reject poruq tem que dar errado e esperamos que esse reject seja uma instancia da classe userAlreadyExists
+ fica assim:
+ test('if user cannot use the same email', async () => {
+    const userRepository = new InMemoryUserRepository()
+    const registerUseCase = new RegisterUseCase(userRepository)
+    const email = 'jhondoe@hotmail.com'
+
+    await registerUseCase.execute({
+      name: 'Jhon Doe',
+      email,
+      password: 'testpassword',
+    })
+    expect(() => {
+      registerUseCase.execute({
+        name: 'Jhon Doe',
+        email,
+        password: 'testpassword',
+      })
+    }).rejects.toBeInstanceOf(UserAlreadyExistsError)
+  })
+
+  agora nos vamos criar um ultimo teste para ver se o registro acontece ocorretamente.
+  vamos apenas registrar um usuario e vamos ver se esse usuario tem um id, ou seja como o id é automatico, caso ele tenha um id quer dizer que ele foi criado. então temos que ver se o user.id toEqual uma string.
 
 
 
