@@ -1732,6 +1732,105 @@ export class AutenticateUseCase {
   }
 }
 
+# teste para a autentificação
+vamos criar o autenticate.spec.ts e podemos nele copiar o register porque vai ser parecido.
+mudamos o describe para autenticate useCase
+apagamos os umtimos testes. ficamos apenas com um teste que é o mais simples.
+mudamos o nome do teste  para autenticate
+mudamos o caso de uso para autenticate useCase e o nome dessa conts tambem. porem como nos ao criar testes damos muito cntrl c cntrl v podemos acabar com o tempo esquecendo de trocar o nome da const. então existe um padrão na comunidade que é chamar a const que vai ser testada, ou seja o use case (dentro do teste) de sut ou seja sistemundertest
+assim quando a gente der cntrl v essa parte não vai mais precisar ser trocada. podemos tirar  name do que nos vamos passar para o execute pq para autentificar ele vai usar so email e senha.
+fica assim por enquanto:
+import { expect, test, describe } from 'vitest'
+import { RegisterUseCase } from './register'
+import { InMemoryUserRepository } from './in-memory/in-memory-user-repository'
+import { AutenticateUseCase } from './autenticate'
+
+describe('autenticate use case', () => {
+  test('if autentication happens', async () => {
+    const userRepository = new InMemoryUserRepository()
+    const sut = new AutenticateUseCase(userRepository)
+
+    const { user } = await sut.execute({
+      email: 'jhondoe@hotmail.com',
+      password: 'testpassword',
+    })
+
+    expect(user.id).toEqual(expect.any(String))
+  })
+})
+
+
+porem para testar isso o usuario precisa estar previamente criado. nos não vamos chamar o register useCase para criar esse usuario porque ai nos estariamos testando dois casos de uso. se tiver erro em um esse erro vai infiltrar.
+então como nos temos acesso ao inMemoryRpository nos vamos criar um usuario la dentro antes de chamar o nosso execute
+vamos da  r um await userRepository e pegar de la o metodo create. e vamos passar os dados do usuario. sabendo que o email e senha tem que ser os mesmos que nos vamos passar no execute. so que no password nos temos que enviar o passwordHash então temos que fazer o hash dessa senha. vamos pegar o hash do bcrypt passar para ele a senha e o numero de round que nos usamos no register que é 6 e ele precisa de um await porque isso é uma promisse.
+fica assim  await userRepository.create({
+      name: 'jhon doe',
+      email: 'jhondoe@hotmail.com',
+      password_hash: await hash('testpassword', 6),
+    })
+
+  a pagina total fica assim e a gente ja pode testar
+  import { expect, test, describe } from 'vitest'
+import { InMemoryUserRepository } from './in-memory/in-memory-user-repository'
+import { AutenticateUseCase } from './autenticate'
+import { hash } from 'bcryptjs'
+
+describe('autenticate use case', () => {
+  test('if autentication happens', async () => {
+    const userRepository = new InMemoryUserRepository()
+    const sut = new AutenticateUseCase(userRepository)
+
+    await userRepository.create({
+      name: 'jhon doe',
+      email: 'jhondoe@hotmail.com',
+      password_hash: await hash('testpassword', 6),
+    })
+
+    const { user } = await sut.execute({
+      email: 'jhondoe@hotmail.com',
+      password: 'testpassword',
+    })
+
+    expect(user.id).toEqual(expect.any(String))
+  })
+})
+
+e ja funciona.
+
+agora a gente precisa criar alguns outros testes para cair nos if de erro la.
+vamos copiar o teste e fazer ul test try to autenticate with wrong email e ai a gente pode tirar o cadastro do usuario, porque ai o email que a gente vai tentar não vai estar la dentro do banco. vamos tirar o const user e colocar so que a gente expect que o await sut.execute de um erro de wrong credentials como lembrado a gente tem que colocar o await antes do expfica assim esse teste/ IMPORTANTE QUE NESSE CASO NÃO COLOCAMOS O { } DEPOIS DA ARROW DO EXPECT:
+test('if try to autenticate with wrong email', async () => {
+    const userRepository = new InMemoryUserRepository()
+    const sut = new AutenticateUseCase(userRepository)
+
+    await expect(() => 
+      sut.execute({
+        email: 'jhondoe@hotmail.com',
+        password: 'testpassword',
+      })
+    ).rejects.toBeInstanceOf(InvalidCredentialsError)
+  })
+
+esse teste tambem passou.
+vamos agora fazer o de wrong password. a gente copia esse ultimo teste mas tambem adicionamos a criação de usuario. porque queremos achar o usuario mas a senha dele não bater.
+podemos mudar o pasword que passamos para o sut como algo wrongPassoword so para ficar explicito onde esta a diferença.
+o este fica assime ele tambem esta fucnionando.
+ test('if try to autenticate with wrong password', async () => {
+    const userRepository = new InMemoryUserRepository()
+    const sut = new AutenticateUseCase(userRepository)
+
+    await userRepository.create({
+      name: 'jhon doe',
+      email: 'jhondoe@hotmail.com',
+      password_hash: await hash('testpassword', 6),
+    })
+
+    await expect(() =>
+      sut.execute({
+        email: 'jhondoe@hotmail.com',
+        password: 'wrongPassword',
+      }),
+    ).rejects.toBeInstanceOf(InvalidCredentialsError)
+  })
+
   
-
-
