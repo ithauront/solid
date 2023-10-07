@@ -15,7 +15,7 @@ gympass
 # rf (requisitos funcionais)
     * funcionalidades da aplicação 
 ex 1 o usuario deve fazer checkin
- () deve ser possivel se cadastrar
+ (v) deve ser possivel se cadastrar
  () deve ser possivel se autenticar
  () deve ser possivel obeter o perfil de um usuario logado
  () deve ser possivel obter o numero de checkin realizados pelo usuario logado
@@ -30,7 +30,7 @@ ex 1 o usuario deve fazer checkin
 # rn (regras de negocio)
     * caminhos que cada requisito pode tomar
 ex 1 o usuario so pode fazer checkin a 10km da academia
-() o usuario não pode se cadastrar com email duplicado
+(v) o usuario não pode se cadastrar com email duplicado
 () o usuario não pode fazer dois checkin no mesmo dia
 () o usuario não pode fazer checkin se não estiver a 100m da academia
 () o checkin so pode ser validado até 20 min apos criado
@@ -40,8 +40,8 @@ ex 1 o usuario so pode fazer checkin a 10km da academia
 
 # rnf (reauisitos não funcionais)
     * qual estrategia de paginação, qual banco de dados vamos usar coisas que so a gente vai entender, o usuario não precisa ter interação com essas coisas.
-() a senha do usuario deve estar criptografada
-() os dados da aplicação precisam estar persistidos em um banco postgrees sql
+(v) a senha do usuario deve estar criptografada
+(v) os dados da aplicação precisam estar persistidos em um banco postgrees sql
 () todas as listas de dados precisam estar paginadas com 20 items por pagina
 () o usuario deve ser identificado por um jwt (json web token)
 
@@ -1626,6 +1626,112 @@ e ele gera um relatorio para a gente o que testou
 vamos so mudar o script para run coverage para ele não ficar sempre observando, apenas rodar uma vez e pronto. o relatorio continua o mesmo
 ele gera uma pasta para nos chamada coverage. nos colocamos essa pasta dentro do gitignore. essa pasta tem um arquivo chamado index.html e esse arquivo tras uma listagem de todos os arquivos que de alguma forma nossos testes passaram e traz o quanto por centro dos nossos arquivos foram cobertos por testes. a gente pode clicar em um desses arquivos como os casos de uso e ele vai mostrar o codigo do nosso arquivo e do mado do numero da linha tem o quantas vezes um teste passa por essa linha.
 dito isso é bom saber que nossa aplicação não precisa ter 100% de coverage, não precisamos testar tudo, porem o cover é bom para que a gente saiba e identifiqwue caso a gente tenha esquecido de testar algo.
+## vistest ui
+para ficar mais visual e não esses relatorios de terminal a gente pode instalar o pacote vitest ui e fazer
+npm i -D @vitest/ui
+e no nosso package json vamos fazer um script 
+ "test:ui": "vitest --ui"
 
+ ai quando a gente roda isso ele abre uma aba no navegador com todos os testes organizados como uma interface de navegador, a gente pode clicar nos testes e ter mais informação etc.
+ ele mostra o module graph que mostra como nosso teste esta conectado com outras partes da aplicação.
+
+# autentificação
+vamos começar pelo caso de uso porque ela é o nivel mais baixo possivel, se a gente começar pelo controler a gente não tem como verificar porque o controler serve para a gente usar o caso de uso fornecer um meio de acesso externo ao nosso caso de uso. então vamos sempre começar de baixo para cima/.
+
+na pasta de useCase vamos criar o autenticate.ts que vai ser o nosso caso de uso de autenticação.
+vamos criar ele tambem como classe por conta da inverão de dependencia. essa classe vai ter um construtor com as dependencias que esse caso de uso vai ter.
+export class AutenticateUseCase {
+  constructor() {}
+}
+vamos precisar acessar o repositorio de usuarios então vamos criar a nossa dependencia do userRepository
+import { UsersRepository } from '@/repositories/users_repository'
+
+export class AutenticateUseCase {
+  constructor(private usersRepository: UsersRepository) {}
+}
+
+e nos vamos ter um metodo chamado asyn execute que vai faz"er a autenticação.
+agora temos tambem que fazer as tipagens do que entra e o que sai desse usecase
+entéao vamos fazer uma interface
+para se autenticar precisamos do email e senha
+interface AutenticateUseCaseRequest {
+  email: string
+  password: string
+}
+e vamos passar para o execute esse email e password de forma desestruurada ou seja dentro de {} e ele vai vir do autenticateUseCaseRequest e vai devolver uma promisse dando um objeto como resposta que é o mesmo do interface de resposta que por enquanto esta vazio fica assim:
+async execute({
+    email,
+    password,
+  }: AutenticateUseCaseRequest): Promise<AutenticateUseCaseResponse> {
+    // autentification
+  }
+
+vai ficar dando erro para parar de dar erro podemos transformar por enquanto o response em um type AutenticateUseCaseResponse = void.
+
+para fazer uma autentificação o processo que vamos fazer é
+buscar o usuario no banco pelo email e comparar se a senha salva no banco bate com a senha enviada
+ent~~ao vamos conseguir reaproveitar o metodo findByEmail que a gente criou no repositorio
+vamos fazer então dentro do execute
+ const user = await this.usersRepository.findByEmail(email) ou seja vamos pegar la do userRepository o metodo findbyemail e vamos passar o nosso email.
+ caso a gente não encontre o email vamos passar o nosso primeiro erro 
+ if (!user)
+ vamos criar um arquivo de erro invalid-credentials-error
+ a gente não faz um erro de senha incorreta e um de usuario para caso qlguem tente burlar o sistema ele não ter dicas de onde ele esta errando.
+ copiamos o erro de userAlredy exist para a gente poder rearoveitar.
+ e vamos mudar o nome para invalid credentials error e no super
+ export class InvalidCredentialsError extends Error {
+  constructor() {
+    super('Invalid credentials error')
+  }
+}
+
+e agora no nosso use case no caso desse erro a gente da um trhwo nele.
+
+agora caso o usuario exista a gente vai começar comparando as senhas
+vamos criar uma variavel de se a senha bate
+const doesPasswordMatches =
+### dica de cleancode
+nos usamos para booleans esse tipo de const ocm um nome como se fosse uma pergunta para a leitura dele ficar semantica, ele vai retornar um true ou falso e ai vai ficar mais compreensivel.
+
+nessa const nos vamos usar o metodo compare do bcrypt 
+esse metodo vai pegar uma senha sem ter feito o hash e uma senha com o hash e compara se a senha sem o hash poderia ser usada para gerar o hash.
+assim:
+  const doesPasswordMatches = await compare(password, user.password_hash)
+  sabendo que o compare foi importado do bcrypt
+  ai se as senhas não baterem vamos jogar de novo o nosso erro de invalid credential
+  e caso a senha bata;, ou seja caso ele passe por tudo isso a gente pode retornar de dentro do caso de uso o nosso usuario. em outras palavras, vamos dar acesso a esse usuario. e na nossa interface de retnro nos vamos colocar que o nosso usuario com a tipagem User de prisma/client 
+  a pagina fica assim:
+  import { UsersRepository } from '@/repositories/users_repository'
+import { InvalidCredentialsError } from './errors/invalid-credentials-error'
+import { compare } from 'bcryptjs'
+import { User } from '@prisma/client'
+
+interface AutenticateUseCaseRequest {
+  email: string
+  password: string
+}
+interface AutenticateUseCaseResponse {
+  user: User
+}
+export class AutenticateUseCase {
+  constructor(private usersRepository: UsersRepository) {}
+
+  async execute({
+    email,
+    password,
+  }: AutenticateUseCaseRequest): Promise<AutenticateUseCaseResponse> {
+    const user = await this.usersRepository.findByEmail(email)
+    if (!user) {
+      throw new InvalidCredentialsError()
+    }
+    const doesPasswordMatches = await compare(password, user.password_hash)
+    if (!doesPasswordMatches) {
+      throw new InvalidCredentialsError()
+    }
+    return { user }
+  }
+}
+
+  
 
 
