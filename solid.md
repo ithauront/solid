@@ -1567,7 +1567,65 @@ a gente chama o metodo de cadastro passando esse email uma vez. e na segunda vez
   agora nos vamos criar um ultimo teste para ver se o registro acontece ocorretamente.
   vamos apenas registrar um usuario e vamos ver se esse usuario tem um id, ou seja como o id é automatico, caso ele tenha um id quer dizer que ele foi criado. então temos que ver se o user.id toEqual uma string.
 
+# coverage de testes
+para saber se estamocaçãoente testando todas as partes de nossa aplicação os frameworks de testes tem uma funcionalidade chamada de coverage. para usar ela vamos no package json e escrevemos um novo script
+ "test:coverage": "vitest --coverage"
+ agoravse a gente rodar esse script ele vai dizer que tem uma dependencia que n<éao foi instalada a gente da um y para ele instalar.
+ percebemos um erro nos testes que é a parte que o expect tem uma promisse o vitest não vai esperar essa promisse se realizar. então sempre que tiver o expect e dentro dele uma promisse a gente tem que colocar oawait dentro do expect.então esse texte abaixo fica adicionado do await xpect:
+  test('if user cannot use the same email', async () => {
+    const userRepository = new InMemoryUserRepository()
+    const registerUseCase = new RegisterUseCase(userRepository)
+    const email = 'jhondoe@hotmail.com'
 
+    await registerUseCase.execute({
+      name: 'Jhon Doe',
+      email,
+      password: 'testpassword',
+    })
+    await expect(() =>
+      registerUseCase.execute({
+        name: 'Jhon Doe',
+        email,
+        password: 'testpassword',
+      }),
+    ).rejects.toBeInstanceOf(UserAlreadyExistsError)
+  })
+
+  agora nos podemos rodar o test:coverage novamnete
+  ele retorna isso:
+   ✓ src/use-cases/register.spec.ts (3)
+   ✓ register use case (3)
+     ✓ if registration happens
+     ✓ if hash user password upon registration
+     ✓ if user cannot use the same email
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+   Start at  11:22:37
+   Duration  12.23s (transform 1.21s, setup 0ms, collect 1.94s, tests 187ms, environment 1ms, prepare 5.95s)
+
+ % Coverage report from v8
+-------------------------------|---------|----------|---------|---------|-------------------
+File                           | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
+-------------------------------|---------|----------|---------|---------|-------------------
+All files                      |     100 |      100 |     100 |     100 |
+ use-cases                     |     100 |      100 |     100 |     100 |
+  register.ts                  |     100 |      100 |     100 |     100 |
+ use-cases/errors              |     100 |      100 |     100 |     100 |
+  user-already-exists.ts       |     100 |      100 |     100 |     100 |
+ use-cases/in-memory           |     100 |      100 |     100 |     100 |
+  in-memory-user-repository.ts |     100 |      100 |     100 |     100 |
+-------------------------------|---------|----------|---------|---------|-------------------
+
+ PASS  Waiting for file changes...
+       press h to show help, press q to quit
+
+
+veja que todos os testes passaram
+e ele gera um relatorio para a gente o que testou
+vamos so mudar o script para run coverage para ele não ficar sempre observando, apenas rodar uma vez e pronto. o relatorio continua o mesmo
+ele gera uma pasta para nos chamada coverage. nos colocamos essa pasta dentro do gitignore. essa pasta tem um arquivo chamado index.html e esse arquivo tras uma listagem de todos os arquivos que de alguma forma nossos testes passaram e traz o quanto por centro dos nossos arquivos foram cobertos por testes. a gente pode clicar em um desses arquivos como os casos de uso e ele vai mostrar o codigo do nosso arquivo e do mado do numero da linha tem o quantas vezes um teste passa por essa linha.
+dito isso é bom saber que nossa aplicação não precisa ter 100% de coverage, não precisamos testar tudo, porem o cover é bom para que a gente saiba e identifiqwue caso a gente tenha esquecido de testar algo.
 
 
 
