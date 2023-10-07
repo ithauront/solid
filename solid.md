@@ -1833,4 +1833,64 @@ o este fica assime ele tambem esta fucnionando.
     ).rejects.toBeInstanceOf(InvalidCredentialsError)
   })
 
-  
+  agora com nossa parte de testes feita a gente pode ir para o controler da nossa autenticação.
+
+  # controler autentication
+  na pasta http controler nos vamos criar um arquivo autentificate.ts
+  nos vamos copiar o register nele porque é muito semelhante.
+  mudamos o nome da função para autenticate
+  vamos tirar o name das coisas que ele recebe
+  vamos trocando os register por autenticate. a importaçéao do registerUseCase a gente muda para autenticateUseCase.
+  e mudamos o erro para o invalidCREDENTIALError e mudamos o reply status para 400QUE 2 BAD REQUEST e no status de se tudo der certo vamos mandar um 200 e não um 201 porque nos não estamos criando nada. e sim dando um ok.
+  o controler fica assim:
+  import { PrismaUsersRepository } from '@/repositories/prisma/PrismaUsersRepository'
+import { AutenticateUseCase } from '@/use-cases/autenticate'
+import { InvalidCredentialsError } from '@/use-cases/errors/invalid-credentials-error'
+import { FastifyReply, FastifyRequest } from 'fastify'
+import { z } from 'zod'
+
+export async function autenticate(
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
+  const autenticateBodySchema = z.object({
+    email: z.string().email(),
+    password: z.string().min(7),
+  })
+
+  const { email, password } = autenticateBodySchema.parse(request.body)
+
+  try {
+    const prismaUsersRepositories = new PrismaUsersRepository()
+    const autenticateUseCase = new AutenticateUseCase(prismaUsersRepositories) // the file that need a useCase is the file that will send the dependencies as params to the useCase
+    await autenticateUseCase.execute({
+      email,
+      password,
+    })
+  } catch (err) {
+    if (err instanceof InvalidCredentialsError) {
+      return reply.status(400).send({ message: err.message })
+    }
+    return reply.status(500).send() // TODO fixthis
+  }
+
+  return reply.status(200).send()
+}
+
+claro que aqui a gente por enquanto so esta verificando se o email e a senha batem e não estamos fazendo nada com isso para o usuario ficar e permanecer autentificado em nossa aplicação (talvez a gente faria isso usando um cookie??) vamos ver esses processos de manter o usuario autentificado depois
+vamos criar uma rota na aplicação no arquivo routes.ts
+vamos criar uma rota post porque nos vamos enviar parametros atravez do body da requisição.
+para o nome da rota nos podemos pensar em tudo na aplicação como identidades, então para manter a semantica a gente pode usar sessions como o nome da rota, ou seja a gente vai criar com o post uma session. assim esse usuario vai entrar na sessão dele, ou seja vai estar autenticado. e no lugar passamos como segundo parametro o autenticate. o arquivo de rotas fica assim:
+import { FastifyInstance } from 'fastify'
+import { register } from './controller/register'
+import { autenticate } from './controller/autentificate'
+
+export async function appRoutes(app: FastifyInstance) {
+  app.post('/users', register)
+  app.post('/sessions', autenticate)
+}
+
+se a gente quiser testar isso agora a gente pode abrir o insomnia, dar um run dev na aplicaçao. ducplicar nossa rota de users e passar sessions para ela. no body passar email e senha e enviar. ele deve retornar ok.
+funciona
+
+
