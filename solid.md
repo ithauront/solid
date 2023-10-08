@@ -1891,6 +1891,86 @@ export async function appRoutes(app: FastifyInstance) {
 }
 
 se a gente quiser testar isso agora a gente pode abrir o insomnia, dar um run dev na aplicaçao. ducplicar nossa rota de users e passar sessions para ela. no body passar email e senha e enviar. ele deve retornar ok.
-funciona
+funciona.
+
+uma das coisas que esta ficando repetitiva em todos os testes é a instanciação. essas linhas:
+ const userRepository = new InMemoryUserRepository()
+    const registerUseCase = new RegisterUseCase(userRepository)
+    no register e essas no autenticate
+     const userRepository = new InMemoryUserRepository()
+    const sut = new AutenticateUseCase(userRepository)
+
+    aparece em todos os testes. a gente pode recortar elas e colocar para elas rodarem em todos os testes.
+    a gente poderia colocar elas antes de iniciar os testes, porem seria a mesma instanciação usada em todos os testes, se acumulando;, e nos precisamos dos testes de forma indepentende, então talvez seja melhor usar um before each.
+    é isso mesmo vamos apos o decribe usar a beforeEach com cuidado para importar ela de dentro do vitest.
+    vamos retirar  instanciação de cada um dos testes e colocar dentro do beforeEach. porem ainda não funciona porque os testes não enxergam ela dessa forma então vamos de forma global criar a userRepository usando o let para poder mudar e apenas tipar ela como inMemoryUser Repository e a mesma coisa para o sut (no register vamos tambem mudar o nome do register use case para sut)
+    fica assim; reparando que nos estamos tipando sem iniciar essas variaveis ou seja sem colocar o () no fim delas
+    let userRepository: InMemoryUserRepository
+let sut: AutenticateUseCase
+
+agora no beforeEach a gente inicia as variaveis fica assim:
+ beforeEach(() => {
+    userRepository = new InMemoryUserRepository()
+    sut = new AutenticateUseCase(userRepository)
+  })
+
+  agora nos fazemos a mesma coisa no register mudando o nome para sut
+  o exemplo de uma pagina interia fica assim:
+  import { expect, test, describe, beforeEach } from 'vitest'
+import { RegisterUseCase } from './register'
+import { compare } from 'bcryptjs'
+import { InMemoryUserRepository } from './in-memory/in-memory-user-repository'
+import { UserAlreadyExistsError } from './errors/user-already-exists'
+
+let userRepository: InMemoryUserRepository
+let sut: RegisterUseCase
+describe('register use case', () => {
+  beforeEach(() => {
+    userRepository = new InMemoryUserRepository()
+    sut = new RegisterUseCase(userRepository)
+  })
+  test('if registration happens', async () => {
+    const { user } = await sut.execute({
+      name: 'Jhon Doe',
+      email: 'jhondoe@hotmail.com',
+      password: 'testpassword',
+    })
+
+    expect(user.id).toEqual(expect.any(String))
+  })
+
+  test('if hash user password upon registration', async () => {
+    const { user } = await sut.execute({
+      name: 'Jhon Doe',
+      email: 'jhondoe@hotmail.com',
+      password: 'testpassword',
+    })
+
+    const isPasswordCorectlyHashed = await compare(
+      'testpassword',
+      user.password_hash,
+    )
+    expect(isPasswordCorectlyHashed).toBe(true)
+  })
+  test('if user cannot use the same email', async () => {
+    const email = 'jhondoe@hotmail.com'
+
+    await sut.execute({
+      name: 'Jhon Doe',
+      email,
+      password: 'testpassword',
+    })
+    await expect(() =>
+      sut.execute({
+        name: 'Jhon Doe',
+        email,
+        password: 'testpassword',
+      }),
+    ).rejects.toBeInstanceOf(UserAlreadyExistsError)
+  })
+})
+
+ou seja a gente recria essas variaveis em memoria antes de cada teste tendo assim um con,texto limpo para cada teste.
+
 
 
