@@ -1972,5 +1972,33 @@ describe('register use case', () => {
 
 ou seja a gente recria essas variaveis em memoria antes de cada teste tendo assim um con,texto limpo para cada teste.
 
+# factory pattern
+esse pattern no momento não traz muitos beneficios mas é melhor ver ele logo para não voltar depois refazendo tudo.
+é comum que em uma aplicação a gente acabe tendo varias rotas ou porta de entradas para coisas normais da aplicação como autentificaçéao cadastro e outros. por isso que fazemos dessas coisas como casos de uso e sempore que a gente precisar desse caso de uso vamos precisar tambem das dependencias desse caso de uso. e aualmente nosso caso de uso ta recebendo um repositorio que é o users repository, mas no futuro isso poderiam ser varios.
+então cada vez que a gente fosse usar um caso de uso a gente eria que instanciar as diversas dependencias dele.
+e para isso temos o factory pattern, ou seja uma fabrica de criação de coisas comuns como dependencias. então sempre que a gente tiver um codigo que vai ser usado em varios lugares da aplicação e que ele vai usar varias dependencias a gente pode utilizar o factory pattern.
+então vamos começar
+na pasta de se cases (porque vamos criar patterns expecificamente para os usecases ) nos vamos criar uma pasta chamada factory e dentro dela vamos fazer arquivos chamados make-(nome da fabrica) ou seja make-register meake-autenticate etc. ele pode ter varios padroes de nomenclatura, mas aqui vamos usar o make.
+e cada arquivo vai ser bem simples. uma função que vai devolver o nosso caso de uso ja com suas dependencias. ou seja vamos la no http controller e pegamos cada um dos arquivos e pegamos as instanciações para fazer o factory deles.
+fica assim:
+import { PrismaUsersRepository } from '@/repositories/prisma/PrismaUsersRepository'
+import { RegisterUseCase } from '../register'
+
+export function makeRegisterUseCase() {
+  const prismaUsersRepositories = new PrismaUsersRepository()
+  const registerUseCase = new RegisterUseCase(prismaUsersRepositories) // the file that need a useCase is the file that will send the dependencies as params to the useCase
+
+  return registerUseCase
+}
+
+agora a gente pode importar essa função la no nosso controler. porque ela ja volta instanciada.
+agora no nosso controler fica assim:
+try {
+    const registerUseCase = makeRegisterUseCase()
+    quando a gente precisa do register usecase é so a gente chamar essa função.
+
+agora quando a gente precisar adicionar dependencias a gente pode fazer elas direto no factory que vai centralizar tudo e essa alteração vai se refletir em todos os lugares, sem precisar ser instanciado em cada um dos lugares e diversas vezes.
+vamos fazer igual para o autenticate.
+
 
 

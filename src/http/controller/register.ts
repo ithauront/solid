@@ -1,6 +1,5 @@
-import { PrismaUsersRepository } from '@/repositories/prisma/PrismaUsersRepository'
 import { UserAlreadyExistsError } from '@/use-cases/errors/user-already-exists'
-import { RegisterUseCase } from '@/use-cases/register'
+import { makeRegisterUseCase } from '@/use-cases/factory/make-register-use-case'
 import { FastifyReply, FastifyRequest } from 'fastify'
 import { z } from 'zod'
 
@@ -14,8 +13,7 @@ export async function register(request: FastifyRequest, reply: FastifyReply) {
   const { name, email, password } = registerBodySchema.parse(request.body)
 
   try {
-    const prismaUsersRepositories = new PrismaUsersRepository()
-    const registerUseCase = new RegisterUseCase(prismaUsersRepositories) // the file that need a useCase is the file that will send the dependencies as params to the useCase
+    const registerUseCase = makeRegisterUseCase()
     await registerUseCase.execute({
       name,
       email,

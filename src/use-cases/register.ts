@@ -3,7 +3,6 @@ import { UsersRepository } from '@/repositories/users_repository'
 import { hash } from 'bcryptjs'
 import { UserAlreadyExistsError } from './errors/user-already-exists'
 import { User } from '@prisma/client'
-import { promise } from 'zod'
 
 interface RegisterUseCaseParams {
   name: string

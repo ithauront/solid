@@ -1,6 +1,5 @@
-import { PrismaUsersRepository } from '@/repositories/prisma/PrismaUsersRepository'
-import { AutenticateUseCase } from '@/use-cases/autenticate'
 import { InvalidCredentialsError } from '@/use-cases/errors/invalid-credentials-error'
+import { makeAutenticateUseCase } from '@/use-cases/factory/make-autenticate-use-case'
 import { FastifyReply, FastifyRequest } from 'fastify'
 import { z } from 'zod'
 
@@ -16,8 +15,7 @@ export async function autenticate(
   const { email, password } = autenticateBodySchema.parse(request.body)
 
   try {
-    const prismaUsersRepositories = new PrismaUsersRepository()
-    const autenticateUseCase = new AutenticateUseCase(prismaUsersRepositories) // the file that need a useCase is the file that will send the dependencies as params to the useCase
+    const autenticateUseCase = makeAutenticateUseCase()
     await autenticateUseCase.execute({
       email,
       password,
