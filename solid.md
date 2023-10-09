@@ -2095,8 +2095,109 @@ export class GetUserProfileUseCase {
   }
 }
 
-agora nos vamos fazer os testes para ele.
+agora nos vamos fazer os testes para ele get-user-profile.spec.ts.
 podemos aproveitar o autenticate éque é bem parecido.
+vamos mudar o nome do describe para get user profile use case
+e tambem a instanciação do before each usando o GetUserProfileUseCase
+no let tambem vamos mudar para getuserProfileUseCase vamos ter so dois testes um para pegar o profile e um que de erro ao tentar pegar o profile
+mudamos o nome dos testes.
+nos nomeamos a criação do usuario como createdUser e assim podemos pegar o user id dele logo abaixo.
+e vamos dar um expect que retorneo nome do usuario e a gente pode passar exatamento o nome dele pra ver se funciona
+esse primeiro teste fica assim:
+ test('if gets user profile', async () => {
+    const createdUser = await userRepository.create({
+      name: 'jhon doe',
+      email: 'jhondoe@hotmail.com',
+      password_hash: await hash('testpassword', 6),
+    })
+
+    const { user } = await sut.execute({
+      userId: createdUser.id,
+    })
+
+    expect(user.name).toEqual('jhon doe')
+    
+  })
+
+  o segundo teste vai ser se a gente passar um id errao entao nos mudamos o nome dele e passamos apenas um userId errado e mudamos o tipo de erro para o que o de resourse fica assim:
+  test('if cannot get user with wrong id', async () => {
+    await expect(() =>
+      sut.execute({
+        userId: 'wrong id',
+      }),
+    ).rejects.toBeInstanceOf(ResourceNotFoundError)
+  })
+
+  apagamos os outros testes e roamos o npm run test para ver a pagina fica assim:
+  import { expect, test, describe, beforeEach } from 'vitest'
+import { InMemoryUserRepository } from './in-memory/in-memory-user-repository'
+import { hash } from 'bcryptjs'
+import { GetUserProfileUseCase } from './get-user-profile'
+import { ResourceNotFoundError } from './errors/resource-not-found-erros'
+
+let userRepository: InMemoryUserRepository
+let sut: GetUserProfileUseCase
+
+describe('get user profile use case', () => {
+  beforeEach(() => {
+    userRepository = new InMemoryUserRepository()
+    sut = new GetUserProfileUseCase(userRepository)
+  })
+
+  test('if gets user profile', async () => {
+    const createdUser = await userRepository.create({
+      name: 'jhon doe',
+      email: 'jhondoe@hotmail.com',
+      password_hash: await hash('testpassword', 6),
+    })
+
+    const { user } = await sut.execute({
+      userId: createdUser.id,
+    })
+
+    expect(user.name).toEqual('jhon doe')
+  })
+  test('if cannot get user with wrong id', async () => {
+    await expect(() =>
+      sut.execute({
+        userId: 'wrong id',
+      }),
+    ).rejects.toBeInstanceOf(ResourceNotFoundError)
+  })
+})
+
+nos vamos agora ficar um tempo mais focado nos usos de caso sem fazer os http de cada uso de aso por enquanto.
+alem disso nas nossas factories tambem estao dando erro porque a gente não implementou o medoto que fizems no prismaUsersRepositories 
+vamos implementar aqui, mas nas proximas vezes nos vamos deixar a parte do factories mais pra frente. então vamos na pasta repositories/primsa/prismaUsersRepostiries.ts
+e la amos ver o erro e dar o implement fica assim:
+import { prisma } from '@/lib/prisma'
+import { Prisma, User } from '@prisma/client'
+import { UsersRepository } from '../users_repository'
+
+export class PrismaUsersRepository implements UsersRepository {
+  findById(id: string): Promise<User | null> {
+    throw new Error('Method not implemented.')
+  }
+
+  async findByEmail(email: string) {
+    const user = await prisma.user.findUnique({
+      where: { email },
+    })
+
+    return user
+  }
+
+  async create(data: Prisma.UserCreateInput) {
+    const user = await prisma.user.create({
+      data,
+    })
+    return user
+  }
+}
+
+agora os nossos factories não dão mais erro.
+nos vamos deixar os register para mais tarde porque é outra camada, a camada de infra então vamos fazer os nossos usos de caso com seus testes por agora e depois passar para essa outra camada.
+
 
 
 
