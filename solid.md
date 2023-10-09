@@ -2000,5 +2000,104 @@ try {
 agora quando a gente precisar adicionar dependencias a gente pode fazer elas direto no factory que vai centralizar tudo e essa alteração vai se refletir em todos os lugares, sem precisar ser instanciado em cada um dos lugares e diversas vezes.
 vamos fazer igual para o autenticate.
 
+# user Progile
+vamos fazer agora um caso de uso para pegar o perfil de um usuario logado.
+vamos criar um caso de uso para isso que vamos chamar de get-uer-profile.ts dentro da pasta useCase
+a gente pode pegar o caso de uso do autenticate e colar la e começar a alterar algumas cisas.
+as interfaces vamos alterar os nomes
+e dentro delas nos vamos receber apenas o id do usuario como parametro. na de request
+interface GetUserProfileUseCaseRequest {
+  userId: string
+}
+vai ser o id porque o id vai ser a unica informação do usuario que nos vamos ter acesso apos o usuario se autenticar.
+assim ja mudamos tambem em todos os lugares que falava autenticate a gente muda para getUserProfile. tambem colocamos wue a execute recebe como parametro apenas o userId.
+vamos agora no prisma usersRepository.ts e vamos fazer o metodo para o findByUserId
+fica assim:
+import { Prisma, User } from '@prisma/client'
+
+export interface UsersRepository {
+  findById(userId: string): Promise<User | null>
+  findByEmail(email: string): Promise<User | null>
+  create(data: Prisma.UserCreateInput): Promise<User>
+}
+
+agora vamos no inMemory e vamos colocar tambem o metodo do findBy Id podemos colocar ele abaixo do public Itens a gente pode fazer ele ja aproveitando o find by email que copimos e colamos. e mudamos o nome e tambem colocamos para ele receber o userId e não o email. e a gente compara o id e não o email como era no find by email. fica assim:
+import { UsersRepository } from '@/repositories/users_repository'
+import { Prisma, User } from '@prisma/client'
+
+export class InMemoryUserRepository implements UsersRepository {
+  public Itens: User[] = []
+
+  async findById(id: string): Promise<User | null> {
+    const user = this.Itens.find((item) => item.id === id)
+    if (!user) {
+      return null
+    }
+    return user
+  }
+
+  async findByEmail(email: string): Promise<User | null> {
+    const user = this.Itens.find((item) => item.email === email)
+    if (!user) {
+      return null
+    }
+    return user
+  }
+
+  async create(data: Prisma.UserCreateInput): Promise<User> {
+    const user = {
+      id: '145781475',
+      name: data.name,
+      email: data.email,
+      password_hash: data.password_hash,
+      created_at: new Date(),
+    }
+    this.Itens.push(user)
+    return user
+  }
+}
+
+com isso salvo voltamos para o get-user-profile.ts
+na execute nossa cont user vai usar o findById e vai passar o userId.
+nos vamos ter a condicional do usuario não existir que é muito comum termos essa condicional para o que estamos procurando não existir por isso podemos fazer um novo erro generico chamado reseurce-not-found-error.ts para tratarmos de todos os erros em que algo que a gente chama não existe.
+vamos fazer umaexport class ResourceNotFoundError extends Error {
+  constructor() {
+    super('Resource not found')
+  }
+}
+
+e agora la no nosso if(!user) a gente da nosso throw chamando esse erro.
+apagamos a const de doesPasswrd match e retornamos o usuario a pagina fica assim:
+import { UsersRepository } from '@/repositories/users_repository'
+import { compare } from 'bcryptjs'
+import { User } from '@prisma/client'
+import { ResourceNotFoundError } from './errors/resource-not-found-erros'
+
+interface GetUserProfileUseCaseRequest {
+  userId: string
+}
+interface GetUserProfileUseCaseResponse {
+  user: User
+}
+export class GetUserProfileUseCase {
+  constructor(private usersRepository: UsersRepository) {}
+
+  async execute({
+    userId,
+  }: GetUserProfileUseCaseRequest): Promise<GetUserProfileUseCaseResponse> {
+    const user = await this.usersRepository.findById(userId)
+
+    if (!user) {
+      throw new ResourceNotFoundError()
+    }
+
+    return { user }
+  }
+}
+
+agora nos vamos fazer os testes para ele.
+podemos aproveitar o autenticate éque é bem parecido.
+
+
 
 
