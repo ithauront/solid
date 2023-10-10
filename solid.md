@@ -2271,7 +2271,82 @@ export class CheckInUseCase {
 }
 
 
-agora vamos escrever os testes para ela.
+agora vamos escrever os testes para ela. 
+para começar a fazer os testes vou criar um inmemory checkin repository
+vamos apagar todos os metodos e so deixar o create vamos colocar para ele pegar o checkinunchecked do prisma voltamos rapidamente para o inmemody user e mudamos o id que esta como um numero la para um ramdom do cripto.
+e na importação a gente coloca um node: na frente do crypto fica assim:
+import { randomUUID } from 'node:crypto'
+fazemos o mesmo no id do checkin e ai vamos colocar os outros campos que podem vir no checkin
+  id?: string | undefined;
+    created_at?: string | Date | undefined;
+    validated_at?: string | Date | null | undefined;
+    user_id: string;
+    gym_id: string;
+  
+  nos vamos colocar o user e o gym peando de data.(eles) e para o validated_at a gente vai colocar que vai ser de data.validated_at caso isso exista vamos usar u new Date(validated_at) assim esse campo vai sempre ser uma data. caso não vamos colocar null. 
+  nosso repository fica assim e agora podemos começar a escrever os testes.
+  import { CheckInRepository } from '@/repositories/check-ins-repository'
+import { CheckIn, Prisma } from '@prisma/client'
+import { randomUUID } from 'node:crypto'
+
+export class InMemoryCheckInsRepository implements CheckInRepository {
+  public Itens: CheckIn[] = []
+
+  async create(data: Prisma.CheckInUncheckedCreateInput): Promise<CheckIn> {
+    const checkIn = {
+      id: randomUUID(),
+      user_id: data.user_id,
+      gym_id: data.gym_id,
+      validated_at: data.validated_at ? new Date(data.validated_at) : null,
+      created_at: new Date(),
+    }
+    this.Itens.push(checkIn)
+    return checkIn
+  }
+}
+
+criamos o arquivo check-in.spec.ts
+vamos copiar o register nele
+deleta todos os testes menos o mais simples de registrar.
+trocamos o repository que vamos usar
+com a preparação do teste mudada ela fica assim:
+import { expect, test, describe, beforeEach } from 'vitest'
+import { InMemoryCheckInsRepository } from './in-memory/in-memory-check-in-repository'
+import { CheckInUseCase } from './check-in'
+
+let checkInsRepository: InMemoryCheckInsRepository
+let sut: CheckInUseCase
+describe('check-in use case', () => {
+  beforeEach(() => {
+    checkInsRepository = new InMemoryCheckInsRepository()
+    sut = new CheckInUseCase(checkInsRepository)
+  })
+
+  agora vamos partir para o teste
+  agora para o execute vamos passar o gym id e o user ID.
+  porem se a gente passar um qualquer como gym01 e user01 tende a funcionar porque nos no nosso usecase a gente não faz uma verificação se esse usuario ou essa academia realmente existem entéao porenquanto vamos deixar assim:
+    e no expect a gente passa o checkin id para ser igual uma string. o teste completo fica assim:import { expect, test, describe, beforeEach } from 'vitest'
+import { InMemoryCheckInsRepository } from './in-memory/in-memory-check-in-repository'
+import { CheckInUseCase } from './check-in'
+
+let checkInsRepository: InMemoryCheckInsRepository
+let sut: CheckInUseCase
+describe('check-in use case', () => {
+  beforeEach(() => {
+    checkInsRepository = new InMemoryCheckInsRepository()
+    sut = new CheckInUseCase(checkInsRepository)
+  })
+  test('if can check in', async () => {
+    const { checkIn } = await sut.execute({
+      gymId: 'gym01',
+      userId: 'user01',
+    })
+
+    expect(checkIn.id).toEqual(expect.any(String))
+  })
+})
+
+
 
 
 
