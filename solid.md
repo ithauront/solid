@@ -2198,6 +2198,80 @@ export class PrismaUsersRepository implements UsersRepository {
 agora os nossos factories não dão mais erro.
 nos vamos deixar os register para mais tarde porque é outra camada, a camada de infra então vamos fazer os nossos usos de caso com seus testes por agora e depois passar para essa outra camada.
 
+# caso de uso de checkin
+vamos criar o arquivo checkin-Use-Case
+vamos copar outro use case qualquer e colar nesse arquivo e mudar o nome do useCase
+agora na interface do request vamos passar o que vamos precisar.
+o id do usuario, o id da academia e por enquanto vai ser so isso. depois vamos adicionar mais coisas (provavelmente localidade e hora)
+interface CheckinUseCaseRequest {
+  userId: string
+  gymId: string
+}
+e no response vamos retornar um checkIn: CheckIn sendo o segundo checkin importado do prisma
+.
+na construção de classe nos não vamos precisar do userRepository. nos vamos precisar de um novo repository que vamos fazer então vamos na pasta de repostitorye  criamos um novo arquivo.check-ins-repository.ts
+vamos dar um export interface e colocar nela o mesmo metodo crete do users mas mudando algumas coisas trocando tudo q é user por checkin. fica assim:
+import { CheckIn, Prisma } from '@prisma/client'
+
+export interface CheckInRepository {
+  create(data: Prisma.CheckInCreateInput): Promise<CheckIn>
+}
+
+
+agora podemos passar ele para o nosso constructor assim:
+export class CheckInUseCase {
+  constructor(private checkInRepository: CheckInRepository) {}
+
+  no execute a gente desestrutura os dados user e gym Id no lugar do que tinha. fica assim:
+   async execute({
+    userId,
+    gymId,
+  }:
+
+  e aora valos criar o check in dando uma const check in sendo igual ao await this.checkinRepository;create e apara o create a gente teria que passar o gim e o user id porem se a gente for olhar os parametros a gente não vai ter eles porque o prisma cria o checkincreateInput sem eles e o checkinUncheckedCreateInput que tem os parametros de relacionamento a ei eles aparecem. ou seja quando a gente estiver criando o checkin a gente vai estar tambem criando em uma outra tabela um registro desse relacionamento entre essas tabelas e o checkin.
+  ou seja tem um que é feito para se quando a gente quiser fazer o checkin em um momento que o usuario e o gim ainda não existisse e a gente criaria eles tambem. mas não vai ser o caso para nos. então nos vamos usar o unchecked que é quando esses valores ja existem em nosso banco de dados.
+  então vamos la no repository e mudamos para checkinUncheckedCreateInput assim:
+  export interface CheckInRepository {
+  create(data: Prisma.CheckInUncheckedCreateInput): Promise<CheckIn>
+}
+e agora o prisma ja reconhece automaticamente o nosso gymId e userId
+   const checkIn = await this.checkInRepository.create({
+      gym_id: gymId,
+      user_id: userId,
+    })
+  }
+
+temos que tipar porque esta escrito de maneira diferente acho que na taberla.
+
+agora podemos dar um return checkin apagamos as importações que não usa e o use case fica assim:
+
+import { CheckIn } from '@prisma/client'
+import { CheckInRepository } from '@/repositories/check-ins-repository'
+
+interface CheckInUseCaseRequest {
+  userId: string
+  gymId: string
+}
+interface CheckInUseCaseResponse {
+  checkIn: CheckIn
+}
+export class CheckInUseCase {
+  constructor(private checkInRepository: CheckInRepository) {}
+
+  async execute({
+    userId,
+    gymId,
+  }: CheckInUseCaseRequest): Promise<CheckInUseCaseResponse> {
+    const checkIn = await this.checkInRepository.create({
+      gym_id: gymId,
+      user_id: userId,
+    })
+    return { checkIn }
+  }
+}
+
+
+agora vamos escrever os testes para ela.
 
 
 
