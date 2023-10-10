@@ -2346,6 +2346,165 @@ describe('check-in use case', () => {
   })
 })
 
+# tdd
+test driven develompemnt
+ou seja devemos desenvolver o teste de uma regra de negocio antes da implementação daquilo o teste ja ajuda a validar se a implementação esta ok ou não.
+então agora a gente tem feito o caso de uso e depois testamos ele. mas poderiamos fazer o caso contrario.
+é uma metodologia, isso é opcional, pode funcionar para alguns e para outros não ser tão adequado.
+as vezes é bom de fazer para coisas bem complicadas. ele facilita a gente entender e caminhar pelas regras de negocio enquanto fazemos.
+vamos aplicara nessa funcionalidade
+o usuario não pode fazer checkin no mesmo dia.
+vamos nos testes de check in e copiar o test que a gente fez para adaptar ele a isso. a gente muda o nome do test para que não seja possivel fazer checkin duas vezes no mesmo dia para isso a gente vai fazer um primeiro checkin e depois vamos tentar fazer o segundo  e queremos que esse segundo seja rejeitado e que isso seja a instancia de um erro como a gente ainda não criou esse erro especifico a gente pode colocar o erro global. fica assim:
+test('if cannot make check in twice in a day', async () => {
+    await sut.execute({
+      gymId: 'gym01',
+      userId: 'user01',
+    })
+
+    await expect(() =>
+      sut.execute({
+        gymId: 'gym01',
+        userId: 'user01',
+      }),
+    ).rejects.toBeInstanceOf(Error)
+  })
+})
+
+salvando isso e rodando os testes ele vai dar erro no teste porque ele vai dizer que a promisse foi resolvida e não o erro como a gente esperada.
+com isso estamos na pimeira etapa do tdd que é o red
+ou seja a parte que o teste esta feita e como ainda não tem o que testar ele da erro. a proxima etapa que vamos buscar é o estado green
+ou seja vamos codar o minimo possivel para que o teste fique verde. ou seja que ele passe. e o terceiro é o refractor.
+
+o nosso teste unitario precisa ser o mais especifico possivel.
+## moking e dates
+usar datas em teste é sempre complicado principalmente quando usamos o new date porque a gente não consegue garantir que vamos estar trabalhando com a mesma data.
+porque se a pesso rodar os testes no futuro a data que foi criada la no in memory vai ser diferente da data q ele vzai rodar.
+entao sempre q a gente usar datas e teste vamos usar mocking que sao valores ficticios para dados.
+o vitest ja tem uma estrategia interna para mokinf de datas. a gente pode passar o use fake timmer
+a gente pode passar uma data especifica para cada vez que for usar o new date ele substituir por essa data especifica que criamos.
+uma boa pratica e se colocarmos uma fakeTimer em um before each a gentre creiar um aftereach para voltar ao realTime, assim a gente zera o ambiente.
+assim:
+ beforeEach(() => {
+    checkInsRepository = new InMemoryCheckInsRepository()
+    sut = new CheckInUseCase(checkInsRepository)
+
+    vi.useFakeTimers()
+  })
+  afterEach(()=>{
+    vi.useRealTimers()
+  })
+
+  agora no teste a gente pode setar uma data. antes de criar o checkin a gente faz ul
+  vi.setSystemTime( new Date(e aqui a gente passa o tempo).)
+    test('if can check in', async () => {
+    vi.setSystemTime(new Date(2022, 0, 20, 8, 0, 0)) // o mes é zero porque janeiro é o index zero 
+    const { checkIn } = await sut.execute({
+      gymId: 'gym01',
+      userId: 'user01',
+    })
+
+    expect(checkIn.id).toEqual(expect.any(String))
+  })
+
+assim ao rodar um teste a data que ele usa vai ser a que a gente setou.
+agora para garantir que os dois checkins sao mesmo criados na mesma data basta a gente colocar um visetsystemtime.
+esse nosso caso provavemente nao daria erro. mas é bom termos o costume de usar isso sempre que tiver data no meio.
+
+como vamos agora garantir que nao tenhamos dois checkn in com a mesma data.
+vamos no repository criar um novo metodo chamado findByUSerIdOnDate ele vai receber um userId e uma data e ele pode devolver um checkin ou nulo.
+  findByUserIdOnDate(userId: string, date: Date): Promise<CheckIn | null>
+esse metodo vai procurar se existe um checkin de um determinado usuario em uma determinada data.
+agora la no nosso inmemory a gente tem que implementar isso.
+ async findByUserIdOnDate(userId: string, date: Date): Promise<CheckIn | null> {
+    throw new Error('Method not implemented.')
+  }
+
+colocamos isso acima e vamos implementar o metodo.
+a gente vai fazer um find para ir la nos itens e ver se tem algum checkin userId igual ao userId que a gente esta recebendo como parametero. e caso não tenha retornamos nulo.
+caso tenha a gente retorna o checkin on the same date.
+fica assim:
+async findByUserIdOnDate(
+    userId: string,
+    date: Date,
+  ): Promise<CheckIn | null> {
+    const checkInOnSameDate = this.Itens.find(
+      (checkIn) => checkIn.user_id === userId,
+    )
+    if (!checkInOnSameDate) {
+      return null
+    }
+    return checkInOnSameDate
+  }
+
+  ou seja nos acabamos nem usando a data.
+  isso porque primeiro a gente faz so funcionar, depois a gente vai refatorar para funcionar como a ente quer.
+
+  agora vamos no nosso useCase de chekin e antes de criar o checkin nos vamos verificar esse metodo.
+      const checkInOnSameDay = await this.checkInRepository.findByUserIdOnDate(
+      userId,
+      new Date(),
+    )
+    colocamos isso logo antes da const checkin dentro do execute e ai vamos fazer um if(checkinonsameday) {
+      throw new Error
+    }
+    ou seja se existir ja um checkin nesse dia ele vai disparar um erro. colocamos um erro generico porque primeiro so queremos fazer passar.
+    a pagina fica assim:
+    import { CheckIn } from '@prisma/client'
+import { CheckInRepository } from '@/repositories/check-ins-repository'
+
+interface CheckInUseCaseRequest {
+  userId: string
+  gymId: string
+}
+interface CheckInUseCaseResponse {
+  checkIn: CheckIn
+}
+export class CheckInUseCase {
+  constructor(private checkInRepository: CheckInRepository) {}
+  async execute({
+    userId,
+    gymId,
+  }: CheckInUseCaseRequest): Promise<CheckInUseCaseResponse> {
+    const checkInOnSameDay = await this.checkInRepository.findByUserIdOnDate(
+      userId,
+      new Date(),
+    )
+    if (checkInOnSameDay) {
+      throw new Error()
+    }
+    const checkIn = await this.checkInRepository.create({
+      gym_id: gymId,
+      user_id: userId,
+    })
+    return { checkIn }
+  }
+}
+
+agora nossos testes ja devem passar. ou seja agora estamos na etapa green e agora temos que fazer o refactore.
+antes do refactor podemos criar mais testes
+com o tdd os testes podem ir guiando a gentepata ve o que esquecemos.
+por exemplo temos que poder fazer dois checkin mas em dias diferentes.
+fica parecido com o outro teste. a gente cria o primeiro check in a apos ele a gente seta de novo o tempo para o dia 21. e ai o checkin abaixo não pode mais dar erro.
+então ao invez de rejects a gente coloca o segundo em uma const checkin e colocamos que a gente espera que ele devolva esse checkIn.id sendo igual a qualqiuer string.
+fica assim o teste:
+ test('if cannot make check in in different days', async () => {
+    vi.setSystemTime(new Date(2022, 0, 20, 8, 0, 0))
+    await sut.execute({
+      gymId: 'gym01',
+      userId: 'user01',
+    })
+
+    vi.setSystemTime(new Date(2022, 0, 21, 8, 0, 0))
+    const { checkIn } = await sut.execute({
+      gymId: 'gym01',
+      userId: 'user01',
+    })
+    expect(checkIn.id).toEqual(expect.any(String))
+  })
+  porem se a gente rodar isso vai dar erro. porque como estamos validadno apenas por userId e não por dataele vai ignorar que as datas são diferentes e vai cair no mesmo erro que o outro cai. então agora temos que fazer esse ficar verde.
+  TDD é isso, a gente vai escrevendo testes e vai fazendo esses testes ficarem vedes e ao escrever mais testes vamos percebendo coisas que temos que melhorar na nossa aplicação para que os outros testes passem a funcionar e que a gente possa cobrir furos que outros testes deixaram.
+  
+
 
 
 
