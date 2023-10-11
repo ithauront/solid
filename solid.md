@@ -2504,6 +2504,245 @@ fica assim o teste:
   porem se a gente rodar isso vai dar erro. porque como estamos validadno apenas por userId e não por dataele vai ignorar que as datas são diferentes e vai cair no mesmo erro que o outro cai. então agora temos que fazer esse ficar verde.
   TDD é isso, a gente vai escrevendo testes e vai fazendo esses testes ficarem vedes e ao escrever mais testes vamos percebendo coisas que temos que melhorar na nossa aplicação para que os outros testes passem a funcionar e que a gente possa cobrir furos que outros testes deixaram.
   
+# validar a data
+para trabalhar com essa data nos vamos instalar um pacote chamado dayjs
+npm i dayjs
+agora com esse pacote nos podemos fazer o inicio do dia e o fim do dia.
+assim não vamos nos preocupar com com os horas minutos e segundos, vamos ter o nosso checkin so gravado no dia.
+la no inmemory  a gente faz essa const dentro do metodo find by date
+const startOfDay = dayjs(date).startOf('date')
+ou seja estamos usando o dayjs para  date no javascript significa o dia, o day significa o dia da semana. por isso usamos o date.
+isso vai fazer independente do horario do dia ele retornar sempre o dia com os horarios zerados. ai vai ficar tudo no mesmo dia
+e vamos crir uma outra que vai ser o endofDay que vai usar o endOf no lugar do StartOf e a diferença vai se no endof day ele vai retornar o ultimo segundo do dia.
+vamos agora nessa função e vamos mudar o checkin que temos por um return a mesma coisa
+    const checkInOnSameDate = this.Itens.find(
+      
+      (checkIn) => checkIn.user_id === userId,
+    )
+     const checkInOnSameDate = this.Itens.find(
+      
+
+     return checkIn.user_id === userId,
+    )
+
+    e andet desse return vamos passar uma const chekin date para ser igual ao dayJspegando o checkin created at.
+     const checkInDate = dayjs(checkIn.created_at)
+
+     agora vamos dar uma const isSameDate e vamos pegar a nossa chackindate e buscar se ela é depois do startofDay e anterior ao endOfday 
+     e no return vamos verificar o userId e o isOnsamedate fica assim:
+     import { CheckInRepository } from '@/repositories/check-ins-repository'
+import { CheckIn, Prisma } from '@prisma/client'
+import dayjs from 'dayjs'
+import { randomUUID } from 'node:crypto'
+
+export class InMemoryCheckInsRepository implements CheckInRepository {
+  public Itens: CheckIn[] = []
+  async findByUserIdOnDate(
+    userId: string,
+    date: Date,
+  ): Promise<CheckIn | null> {
+    const startOfDay = dayjs(date).startOf('date')
+    const endOfDay = dayjs(date).endOf('date')
+    const checkInOnSameDate = this.Itens.find((checkIn) =>{
+      const checkInDate = dayjs(checkIn.created_at)
+      const isOnSameDate = checkInDate.isAfter(startOfDay) && checkInDate.isBefore(endOfDay)
+
+     return checkIn.user_id === userId && isOnSameDate,
+    } )
+    if (!checkInOnSameDate) {
+      return null
+    }
+    return checkInOnSameDate
+  }
+
+  async create(data: Prisma.CheckInUncheckedCreateInput): Promise<CheckIn> {
+    const checkIn = {
+      id: randomUUID(),
+      user_id: data.user_id,
+      gym_id: data.gym_id,
+      validated_at: data.validated_at ? new Date(data.validated_at) : null,
+      created_at: new Date(),
+    }
+    this.Itens.push(checkIn)
+    return checkIn
+  }
+}
+
+agora o nosso inmemory para testes ja esta fucnionando. os testes est éao passando.
+nos podemos fazer dois checkins em dias diferentes
+vamos pensaragora para o usuario não pode fazer checkin a mais de 100m da academia
+agora vamos começar a trabalahar com o repositorio de academia para buscar a academia do banco de dados e saber onde ela esta.
+vamos criar o gyms repository e la por enquanto vai ter so o metodo find by id:
+import { Gym } from '@prisma/client'
+
+export interface GymsRepository {
+  findById(gymId: string): Promise<Gym | null>
+}
+
+vamos no inmemory criar um inmemory gyl repository copiamos o user e deixampos so o metodo findbyid e trocamos todos os users por gym:
+import { Gym } from '@prisma/client'
+import { GymsRepository } from '../gyms-repository'
+
+export class InMemoryGymRepository implements GymsRepository {
+  public Itens: Gym[] = []
+
+  async findById(id: string): Promise<Gym | null> {
+    const gym = this.Itens.find((item) => item.id === id)
+    if (!gym) {
+      return null
+    }
+    return gym
+  }
+}
+
+agora dentro do useCase do checkin para determinar a localisação do usuario existem varias formas.
+a gente vai precisar da latitude e longitude nos aumentamos isso então na interface do checkinrequest
+interface CheckInUseCaseRequest {
+  userId: string
+  gymId: string
+  userLatitude: string
+  userLongitude: string
+}
+
+como a gente vai ter acesso a isso fica para depois, o caso de uso não se preocupa com isso, ele so se preocupa em se ele recebe o que precisa para funcionar.
+
+e agora no nosso constructor ele vai precisar tambem do osso gymsRepository
+export class CheckInUseCase {
+  constructor(
+    private checkInRepository: CheckInRepository,
+    private gymsRepository: GymsRepository,
+  ) {}
+
+  e agora no nosso execute a gente pode procurar o gymid n o gymrepository assim:
+      const gym = await this.gymsRepository.findById(gymId)
+      e se a gente néao achar a gente pode dar trhwoe ew error resorce not found que a gente ja tinha criado fica assim:
+       async execute({
+    userId,
+    gymId,
+  }: CheckInUseCaseRequest): Promise<CheckInUseCaseResponse> {
+    const gym = await this.gymsRepository.findById(gymId)
+    if (!gym) {
+      throw new ResourceNotFoundError()
+    }
+
+    agora se a cademia existir a gente precisa calcular a distancia entre o usuario e a academia e se a distancia for maior a gente da um erro de distancia invalida.
+    porem antes de a gente comecar isso o nosso teste do chekin vai estar cheio de erro porque ele agora precisa de duas dependencias então temos que fazer um let gym repository mesmq coisa que a gente fez com o user.
+    dessa forma:
+    let checkInsRepository: InMemoryCheckInsRepository
+let gymRepository: InMemoryGymRepository
+let sut: CheckInUseCase
+describe('check-in use case', () => {
+  beforeEach(() => {
+    checkInsRepository = new InMemoryCheckInsRepository()
+    gymRepository = new InMemoryGymRepository()
+    sut = new CheckInUseCase(checkInsRepository, gymRepository)
+
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimer
+
+    so que nas chamadas ainda a erro porque não estamos eviando a latitude e longitude em cada caso. em todos que não sao importante nos podemos passar como zero. 
+    porem se a gente rodar os testes vai dar erro porque agora estamos validando se a acedmia existe ou não então quando a gente passa o gym1 ele não acha ela no banco de dados. então antes de passar isso a gente tem que cadastrar ela. como a gente não tem ainda o metodo create vamos apenas acessar o array de itens e dar um push nele e passar o id; gym-1. e as outras informações obrigatorias. sabendo que na latitude e longitude o prisma pede o decimal ent éao não vai ser 0 então vamos ter que passar new Decimal(0) o decimal temos que importar do prisma
+     test('if can check in', async () => {
+    gymRepository.Itens.push({
+      id: 'gym01',
+      title: 'academiaTeste',
+      description: 'a melhor academia',
+      phone: '',
+      latitude: new Decimal(0),
+      longitude: new Decimal(0),
+    })
+    vi.setSystemTime(new Date(2022, 0, 20, 8, 0, 0))
+    const { checkIn } = await sut.execute({
+      gymId: 'gym01',
+      userId: 'user01',
+      userLatitude: 0,
+      userLongitude: 0,
+    })
+    como todos os testes precisam dessa criação de academia a gente pode fazer ela no before each.
+    a pagina fica assim
+    import { expect, test, describe, beforeEach, vi, afterEach } from 'vitest'
+import { InMemoryCheckInsRepository } from '../repositories/in-memory/in-memory-check-in-repository'
+import { CheckInUseCase } from './check-in'
+import { InMemoryGymRepository } from '@/repositories/in-memory/in-memory-user-repository'
+import { Decimal } from '@prisma/client/runtime/library'
+
+let checkInsRepository: InMemoryCheckInsRepository
+let gymRepository: InMemoryGymRepository
+let sut: CheckInUseCase
+describe('check-in use case', () => {
+  beforeEach(() => {
+    checkInsRepository = new InMemoryCheckInsRepository()
+    gymRepository = new InMemoryGymRepository()
+    sut = new CheckInUseCase(checkInsRepository, gymRepository)
+    gymRepository.Itens.push({
+      id: 'gym01',
+      title: 'academiaTeste',
+      description: 'a melhor academia',
+      phone: '',
+      latitude: new Decimal(0),
+      longitude: new Decimal(0),
+    })
+
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+  test('if can check in', async () => {
+    vi.setSystemTime(new Date(2022, 0, 20, 8, 0, 0))
+    const { checkIn } = await sut.execute({
+      gymId: 'gym01',
+      userId: 'user01',
+      userLatitude: 0,
+      userLongitude: 0,
+    })
+
+    expect(checkIn.id).toEqual(expect.any(String))
+  })
+
+  test('if cannot make check in twice in a day', async () => {
+    vi.setSystemTime(new Date(2022, 0, 20, 8, 0, 0))
+    await sut.execute({
+      gymId: 'gym01',
+      userId: 'user01',
+      userLatitude: 0,
+      userLongitude: 0,
+    })
+
+    await expect(() =>
+      sut.execute({
+        gymId: 'gym01',
+        userId: 'user01',
+        userLatitude: 0,
+        userLongitude: 0,
+      }),
+    ).rejects.toBeInstanceOf(Error)
+  })
+  test('if cannot make check in in different days', async () => {
+    vi.setSystemTime(new Date(2022, 0, 20, 8, 0, 0))
+    await sut.execute({
+      gymId: 'gym01',
+      userId: 'user01',
+      userLatitude: 0,
+      userLongitude: 0,
+    })
+
+    vi.setSystemTime(new Date(2022, 0, 21, 8, 0, 0))
+    const { checkIn } = await sut.execute({
+      gymId: 'gym01',
+      userId: 'user01',
+      userLatitude: 0,
+      userLongitude: 0,
+    })
+    expect(checkIn.id).toEqual(expect.any(String))
+  })
+})
+
+eu tinha feito um erro de ter criado o gym repository dentro do user. eu modificiquei isso e a importação no checkin.spec. agora esta tudo certo. é so tomar cuidado com a importação uma vez que aqui no manual eu coloquei o titulo correto para os arquivos do inmemory gym e inmemory user.
+
+    
 
 
 
