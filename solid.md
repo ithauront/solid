@@ -2742,8 +2742,150 @@ describe('check-in use case', () => {
 
 eu tinha feito um erro de ter criado o gym repository dentro do user. eu modificiquei isso e a importação no checkin.spec. agora esta tudo certo. é so tomar cuidado com a importação uma vez que aqui no manual eu coloquei o titulo correto para os arquivos do inmemory gym e inmemory user.
 
-    
+# teste de chekckin longe da academia
+para esse testenos vamos replicar o teste de checkin e fazer um teste chamado test if cnnot checkin in distant gym ele vai ter cpiar esse teste de checkin
+test('if can check in', async () => {
+    vi.setSystemTime(new Date(2022, 0, 20, 8, 0, 0))
+    const { checkIn } = await sut.execute({
+      gymId: 'gym01',
+      userId: 'user01',
+      userLatitude: 0,
+      userLongitude: 0,
+    })
 
+    expect(checkIn.id).toEqual(expect.any(String))
+  })
+  nos botamos distante e não a distancia especifica porque no futuro essa distancia pode mudar.
+  nos vamos abrir o mpara encontrar duas localizações que tem pelo menu pegar a distancia que elão vouabir o maps vou pegar a distancia que ele s dizem no rocketseat.
+  vamos pegar a parte que a gente cria a academia e vamos copiar ela dentro desse teste.
+  vamos criar uma nova academia dentro do repositorio com id 02
+  e na latitude longitude a gente vai passar as que podemos pegar do google dentro do new decial. fica assim:
+   gymRepository.Itens.push({
+      id: 'gym02',
+      title: 'academiaTeste',
+      description: 'a melhor academia',
+      phone: '',
+      latitude: new Decimal(-27.8747279),
+      longitude: new Decimal(-49.4889672),
+    })
+    com isso criamos uam nova academia com oa latitude e longitude agora vamos ppassar para o usuario uma latitude e longitude acam c100m da acatancia maior uque essa da acade 100m da academia. vamos dar isso dentro de uma promsse ent#ão o await antes e tem que voltar um rejects sendo um erro. fica asim:
+   test('if cannot check in distant gym', async () => {
+    vi.setSystemTime(new Date(2022, 0, 20, 8, 0, 0))
+    gymRepository.Itens.push({
+      id: 'gym02',
+      title: 'academiaTeste',
+      description: 'a melhor academia',
+      phone: '',
+      latitude: new Decimal(-27.8747279),
+      longitude: new Decimal(-49.4889672),
+    })
+
+    await expect(() => {
+      sut.execute({
+        gymId: 'gym01',
+        userId: 'user01',
+        userLatitude: -27.2982852,
+        userLongitude: -49.6481891,
+      })
+    }).rejects.toBeInstanceOf(Error)
+  })
+})
+
+se a gente rodar o teste agora vai falhar porque ele pes ite qunocirar distancia.
+dentro do nosso caso de uso a gente ja tem o que precisamos. a gente tem nosparametros a latitude e longitude do usuario e temos tambvem acesso a da academia.
+nos parametros do execute então vamos passar o latitude e longitude assim:
+ async execute({
+    userId,
+    gymId,
+    userLatitude,
+    userLongitude
+  }: CheckInUseCaseRequest): Promise<CheckInUseCaseResponse> {
+
+  porem para calclar a distancia não é téao siples vamos criar uma pasta chamada utils no src para armazenar esse calculo. nela vamos criar um arquivo chamado: get-distance-between-coordinates.ts
+  nessa pagina vamos fazer uma interface chamada coordinate com latitude e longitude sendo numeros
+  e ela vai exportar uma função que vai calcular de coordinates para coordinates fica assim:
+  export interface Coordinate {
+  latitude: number
+  longitude: number
+}
+
+export function GetDistanceBetweenCoordinates(
+  from: Coordinates,
+  to: Coordinate,
+) {}
+
+tem uma função de calculo naval complicada para resolver isso a gente vai simplemsente copiar e colar ela dentro dessa funçéao que a gente fez. vou copiar aqui tambem
+
+## funcão calculo naval latitude e longitude 
+
+export interface Coordinate {
+  latitude: number
+  longitude: number
+}
+
+export function getDistanceBetweenCoordinates(
+  from: Coordinate,
+  to: Coordinate,
+) {
+  if (from.latitude === to.latitude && from.longitude === to.longitude) {
+    return 0
+  }
+
+  const fromRadian = (Math.PI * from.latitude) / 180
+  const toRadian = (Math.PI * to.latitude) / 180
+
+  const theta = from.longitude - to.longitude
+  const radTheta = (Math.PI * theta) / 180
+
+  let dist =
+    Math.sin(fromRadian) * Math.sin(toRadian) +
+    Math.cos(fromRadian) * Math.cos(toRadian) * Math.cos(radTheta)
+
+  if (dist > 1) {
+    dist = 1
+  }
+
+  dist = Math.acos(dist)
+  dist = (dist * 180) / Math.PI
+  dist = dist * 60 * 1.1515
+  dist = dist * 1.609344
+
+  return dist
+}
+
+essa função retorna em kilometros a distancia entre dois pontos.
+agora no nosso caso de uso de checkin a gente vai fazer uma const distance = getdistance betewcoordinates
+podemos passar em qualqeur ordem vamos passar dois objetso uma com a user latitude e longitude e outro com a gym latitude e longitude no caso do gym o prisma salva como decimal então temos que usar a funcção toNumber() para adaptara ao numero do javascript.
+const distance = getDistanceBetweenCoordinates(
+      { latitude: userLatitude, longitude: userLongitude },
+      { latitude: gym.latitude.toNumber(), longitude: gym.longitude.toNumber() },
+    ) {
+
+    }
+* cuidado para não errar longitude com latitude porque o erro da muito errado.
+agora fazemos um if(distance ) for maior wue à.1 que é 100m ele vai disparar um erro.
+mas ja vamos vazer uma cont maxdistance = 0.1 assim a gente troca o 0.1 ali por maxdistance e fica mais claro para o codigo para entender oq é. tavew ate melhor maxdistanceInKM. ficpi assim:
+: CheckInUseCaseRequest): Promise<CheckInUseCaseResponse> {
+    const gym = await this.gymsRepository.findById(gymId)
+    if (!gym) {
+      throw new ResourceNotFoundError()
+    }
+
+    const distance = getDistanceBetweenCoordinates(
+      { latitude: userLatitude, longitude: userLongitude },
+      {
+        latitude: gym.latitude.toNumber(),
+        longitude: gym.longitude.toNumber(),
+      },
+    )
+    const maxDistanceInKM = 0.1
+    if (distance > maxDistanceInKM) {
+      throw new Error()
+    }
+
+porem agora esse é o unico teste que vai passar (néao no nosso caso).
+todos os outros vao dar erro agora para ele porque ele tinha passado uma distancia real para o usuario mas uma Zero para academia, como nos passamos zero tanteo para todos os usuarios quanto para a academia do beforeeach da certo.
+.
 
 
 
