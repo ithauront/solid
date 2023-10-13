@@ -2887,6 +2887,360 @@ porem agora esse é o unico teste que vai passar (néao no nosso caso).
 todos os outros vao dar erro agora para ele porque ele tinha passado uma distancia real para o usuario mas uma Zero para academia, como nos passamos zero tanteo para todos os usuarios quanto para a academia do beforeeach da certo.
 .
 
+# useCase criação de academia
+fazemos um arquivo chamado creategym. para o use case e em todos os RegisterUseCase a gente muda para create Gym UseCase
+nos pavamos passar as coisas que são para a criação de uma gyl
+upcional é diferente de nulo por isso não colocamos a descrição como opcional. isso porque ao criar uma academia com a descrição vazia a gente pode simplismente não eviar a descriçéao. mas para atualizar se a gente não envia a descrição a gente não quer mexer ele e não atualizar para vazio. por isso que as vezes tambem temos opcional e nulo.
+interface CreateGymUseCaseParams {
+  title: string
+  description: string | null
+  phone: string
+  latitude: number
+  longitude: number
+}
+na interface da resposta a gente passa o gym do prisma client
+no constructor pegamos o gym repository
+no execute passamos as coisa que o interface pede (title description etc
+)
+e deletamos tudo que não é o create.
+para ter acesso ao metodo create a gente tem que criar ele no gym repository. fica assim:
+import { Gym, Prisma } from '@prisma/client'
+
+export interface GymsRepository {
+  findById(gymId: string): Promise<Gym | null>
+  create(data: Prisma.GymCreateInput): Promise<Gym>
+}
+
+agora nossa pagina create-gym.ts fica assim usando o metodo e passando para ele as coisas que o gym recebe:
+import { hash } from 'bcryptjs'
+import { UserAlreadyExistsError } from './errors/user-already-exists'
+import { Gym } from '@prisma/client'
+import { GymsRepository } from '@/repositories/gyms-repository'
+
+interface CreateGymUseCaseParams {
+  title: string
+  description: string | null
+  phone: string
+  latitude: number
+  longitude: number
+}
+interface CreateGymUseCaseResponse {
+  gym: Gym
+}
+export class CreateGymUseCase {
+  constructor(private gymsRepository: GymsRepository) {}
+
+  async execute({
+    title,
+    description,
+    phone,
+    latitude,
+    longitude,
+  }: CreateGymUseCaseParams): Promise<CreateGymUseCaseResponse> {
+    const gym = await this.gymsRepository.create({
+      title,
+      description,
+      phone,
+      latitude,
+      longitude,
+    })
+
+    return { gym }
+  }
+}
+agora vamos no inMemory
+e colocamos a função create para receber as coisas que vem do data. porem o latitude e longitude estao como decial nos temos que converter o que recebemos para esse sistema. tambem o description e phone podem ser nulos então temos que dar essa possibilidade usando o ?? fica assim:
+ async create(data: Prisma.GymCreateInput): Promise<Gym> {
+    const gym = {
+      id: randomUUID(),
+      title: data.title,
+      description: data.description ?? null,
+      phone: data.phone ?? null,
+      latitude: new Prisma.Decimal(data.latitude.toString()),
+      longitude: new Prisma.Decimal(data.longitude.toString()),
+      created_at: new Date(),
+    }
+    this.Itens.push(gym)
+    return gym
+  }
+}
+
+e aggora a gente pode voltar ao nosso caso de uso. ele fica assim:
+import { hash } from 'bcryptjs'
+import { UserAlreadyExistsError } from './errors/user-already-exists'
+import { Gym } from '@prisma/client'
+import { GymsRepository } from '@/repositories/gyms-repository'
+
+interface CreateGymUseCaseParams {
+  title: string
+  description: string | null
+  phone: string
+  latitude: number
+  longitude: number
+}
+interface CreateGymUseCaseResponse {
+  gym: Gym
+}
+export class CreateGymUseCase {
+  constructor(private gymsRepository: GymsRepository) {}
+
+  async execute({
+    title,
+    description,
+    phone,
+    latitude,
+    longitude,
+  }: CreateGymUseCaseParams): Promise<CreateGymUseCaseResponse> {
+    const gym = await this.gymsRepository.create({
+      title,
+      description,
+      phone,
+      latitude,
+      longitude,
+    })
+
+    return { gym }
+  }
+}
+
+vamos agrora criar o create gy spec.ts e copiar o de registro pra dentro dele. apagar tudo e deixar so o de criação.
+e mudamos o que tem user para gym. depois passamos as caracteristicas aqui escolhemos dar uma latitude e longitude real. a pagina fica assim:
+import { expect, test, describe, beforeEach } from 'vitest'
+import { InMemoryGymRepository } from '@/repositories/in-memory/in-memory-gym-repository'
+import { CreateGymUseCase } from './create-gym'
+
+let gymRepository: InMemoryGymRepository
+let sut: CreateGymUseCase
+describe('create gym use case', () => {
+  beforeEach(() => {
+    gymRepository = new InMemoryGymRepository()
+    sut = new CreateGymUseCase(gymRepository)
+  })
+  test('if creation happens', async () => {
+    const { gym } = await sut.execute({
+      title: 'gym01',
+      description: 'gym Description',
+      phone: '0108074561',
+      latitude: 27.8747279,
+      longitude: -49.4889672,
+    })
+
+    expect(gym.id).toEqual(expect.any(String))
+  })
+})
+
+
+agora todos os testes estão passando. 
+agora podemos ir no cjeck in e aproveitar oo nosso metodo de criação de academia para parar de fazer o push nos itensm ara criar a academia.
+tinha um pequeno erro  o checkin spec o arquivo correto fica assim:
+import { expect, test, describe, beforeEach, vi, afterEach } from 'vitest'
+import { InMemoryCheckInsRepository } from '../repositories/in-memory/in-memory-check-in-repository'
+import { CheckInUseCase } from './check-in'
+import { InMemoryGymRepository } from '@/repositories/in-memory/in-memory-gym-repository'
+import { Decimal } from '@prisma/client/runtime/library'
+
+let checkInsRepository: InMemoryCheckInsRepository
+let gymRepository: InMemoryGymRepository
+let sut: CheckInUseCase
+describe('check-in use case', () => {
+  beforeEach(async () => {
+    checkInsRepository = new InMemoryCheckInsRepository()
+    gymRepository = new InMemoryGymRepository()
+    sut = new CheckInUseCase(checkInsRepository, gymRepository)
+    await gymRepository.create({
+      id: 'gym01',
+      title: 'academiaTeste',
+      description: 'a melhor academia',
+      phone: '',
+      latitude: 0,
+      longitude: 0,
+    })
+
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+  test('if can check in', async () => {
+    vi.setSystemTime(new Date(2022, 0, 20, 8, 0, 0))
+    const { checkIn } = await sut.execute({
+      gymId: 'gym01',
+      userId: 'user01',
+      userLatitude: 0,
+      userLongitude: 0,
+    })
+
+    expect(checkIn.id).toEqual(expect.any(String))
+  })
+
+  test('if cannot make check in twice in a day', async () => {
+    vi.setSystemTime(new Date(2022, 0, 20, 8, 0, 0))
+    await sut.execute({
+      gymId: 'gym01',
+      userId: 'user01',
+      userLatitude: 0,
+      userLongitude: 0,
+    })
+
+    await expect(() =>
+      sut.execute({
+        gymId: 'gym01',
+        userId: 'user01',
+        userLatitude: 0,
+        userLongitude: 0,
+      }),
+    ).rejects.toBeInstanceOf(Error)
+  })
+  test('if cannot make check in in different days', async () => {
+    vi.setSystemTime(new Date(2022, 0, 20, 8, 0, 0))
+    await sut.execute({
+      gymId: 'gym01',
+      userId: 'user01',
+      userLatitude: 0,
+      userLongitude: 0,
+    })
+
+    vi.setSystemTime(new Date(2022, 0, 21, 8, 0, 0))
+    const { checkIn } = await sut.execute({
+      gymId: 'gym01',
+      userId: 'user01',
+      userLatitude: 0,
+      userLongitude: 0,
+    })
+    expect(checkIn.id).toEqual(expect.any(String))
+  })
+  test('if cannot check in distant gym', async () => {
+    vi.setSystemTime(new Date(2022, 0, 20, 8, 0, 0))
+    gymRepository.Itens.push({
+      id: 'gym02',
+      title: 'academiaTeste',
+      description: 'a melhor academia',
+      phone: '',
+      latitude: new Decimal(-27.8747279),
+      longitude: new Decimal(-49.4889672),
+    })
+
+    await expect(() => {
+      sut.execute({
+        gymId: 'gym01',
+        userId: 'user01',
+        userLatitude: -27.2982852,
+        userLongitude: -49.6481891,
+      })
+    }).rejects.toBeInstanceOf(Error)
+  })
+})
+
+
+agora voltamos ma para o nosso inmemorygymrepository porque nos podemos receber um id no data. então vamos colocar para se a gente receber um id a gente usar ele se néao criarmos um. fica assim:
+import { Gym, Prisma } from '@prisma/client'
+import { GymsRepository } from '../gyms-repository'
+import { randomUUID } from 'crypto'
+
+export class InMemoryGymRepository implements GymsRepository {
+  public Itens: Gym[] = []
+
+  async findById(id: string): Promise<Gym | null> {
+    const gym = this.Itens.find((item) => item.id === id)
+    if (!gym) {
+      return null
+    }
+    return gym
+  }
+
+  async create(data: Prisma.GymCreateInput): Promise<Gym> {
+    const gym = {
+      id: data.id ?? randomUUID(),
+      title: data.title,
+      description: data.description ?? null,
+      phone: data.phone ?? null,
+      latitude: new Prisma.Decimal(data.latitude.toString()),
+      longitude: new Prisma.Decimal(data.longitude.toString()),
+      created_at: new Date(),
+    }
+    this.Itens.push(gym)
+    return gym
+  }
+}
+com essa alteração a nossa criação de academia nos testes com id especifico vai funcionatr.
+vamos agora criar um novo erro para nõa deixar os erros genericos no caso de uso de checkin
+vamos criar o max-distance-error.ts
+e la dentro como os outros erros passamos o constructor e a super.
+export class MaxDistanceError extends Error {
+  constructor() {
+    super('Max distance reached')
+  }
+}
+agora la no checkin a gente passa esse erro para esse caso.
+vamos criar um segundo erro chamado
+max-number-of-checkin-error.ts
+e fazer um erro como o de cima neme so que passando o nome correto e a msg correta.
+na pagina de checkin a gente coloca um erro no checkin on same day e outro no distance.
+a pagina fica assim:
+import { CheckIn } from '@prisma/client'
+import { CheckInRepository } from '@/repositories/check-ins-repository'
+import { GymsRepository } from '@/repositories/gyms-repository'
+import { ResourceNotFoundError } from './errors/resource-not-found-erros'
+import { getDistanceBetweenCoordinates } from '@/utils/get-distance-between-coordinates'
+import { MaxDistanceError } from './errors/max-distance-error'
+import { MaxNumberOfCheckinError } from './errors/max-number-of-checkin-error'
+
+interface CheckInUseCaseRequest {
+  userId: string
+  gymId: string
+  userLatitude: number
+  userLongitude: number
+}
+interface CheckInUseCaseResponse {
+  checkIn: CheckIn
+}
+export class CheckInUseCase {
+  constructor(
+    private checkInRepository: CheckInRepository,
+    private gymsRepository: GymsRepository,
+  ) {}
+
+  async execute({
+    userId,
+    gymId,
+    userLatitude,
+    userLongitude,
+  }: CheckInUseCaseRequest): Promise<CheckInUseCaseResponse> {
+    const gym = await this.gymsRepository.findById(gymId)
+    if (!gym) {
+      throw new ResourceNotFoundError()
+    }
+
+    const distance = getDistanceBetweenCoordinates(
+      { latitude: userLatitude, longitude: userLongitude },
+      {
+        latitude: gym.latitude.toNumber(),
+        longitude: gym.longitude.toNumber(),
+      },
+    )
+    const maxDistanceInKM = 0.1
+    if (distance > maxDistanceInKM) {
+      throw new MaxDistanceError()
+    }
+
+    const checkInOnSameDay = await this.checkInRepository.findByUserIdOnDate(
+      userId,
+      new Date(),
+    )
+    if (checkInOnSameDay) {
+      throw new MaxNumberOfCheckinError()
+    }
+    const checkIn = await this.checkInRepository.create({
+      gym_id: gymId,
+      user_id: userId,
+    })
+    return { checkIn }
+  }
+}
+
+
+
+
 
 
 
