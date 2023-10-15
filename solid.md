@@ -3238,6 +3238,162 @@ export class CheckInUseCase {
   }
 }
 
+# historico de chekin useCase
+vamos fazer o use case do historico de checki s ele tem a particularidade de uma paginação de 120 itens por pagina então tgambem vamos ter que nos preocupar com isso no futudo.
+vamos la no usesCases e criar um arquivo para isso.
+fetch-user-chickins-history.ts
+na nomenclatura a gente pode usar o fetch para sinalizar que vamos pegar varias informações o get para sinalizar que vai ser uma so informação. mas isso não é uma obrigação e nem todo mundo usa essa mesma nomenclatura.
+vamos ja deixar tambem o teste feito mesmo nome com spec nele.
+vamos copiar e colar o caso de uso de checkins de la 
+na nossa interface a gente diz que vai receber apenas um id e vamos retornar uma lista de checkins por isso colocamos ul array. fica assim:
+interface FetchUserCheckinHistoryUseCaseRequest {
+  userId: string
+}
+interface FetchUserCheckinHistoryUseCaseResponse {
+  checkIns: CheckIn[]
+}
+no execute a gente recebe o userId. e no repository so colocamos o checkinreposit
+so que no nosso repository nosprecisamos fazer um novo metodo chamado  findManyByUserId(userId: string): Promise<CheckIn[]>
+ para achar varios checkins o many significa que vai devolver um lista na nossa semantica aqui de nomes. enquanto quando tem so findBy singifica que vai devolver so um.
+agora vamos no inmemory checkinrepository para implementar o nosso metodo.
+  async findManyByUserId(userId: string): Promise<CheckIn[]> {
+    return this.Itens.filter((item) => item.user_id === userId)
+  }
+
+  agora voltamos para o nosso useCase e usamos esse metodo passanod o userId para ter uma lista de checkins.
+  pagina fica assim:
+  import { CheckIn } from '@prisma/client'
+import { CheckInRepository } from '@/repositories/check-ins-repository'
+
+interface FetchUserCheckinHistoryUseCaseRequest {
+  userId: string
+}
+interface FetchUserCheckinHistoryUseCaseResponse {
+  checkIns: CheckIn[]
+}
+export class FetchUserCheckinHistoryUseCase {
+  constructor(private checkInRepository: CheckInRepository) {}
+
+  async execute({
+    userId,
+  }: FetchUserCheckinHistoryUseCaseRequest): Promise<FetchUserCheckinHistoryUseCaseResponse> {
+    const checkIns = await this.checkInRepository.findManyByUserId(userId)
+
+    return { checkIns }
+  }
+}
+
+agora vamos para os testes
+podemos copiar o teste do checkin
+apagamos tudo menos o primeiro teste.
+tiramos os faketimers e a academia..
+a gente muda os SUT
+let checkInsRepository: InMemoryCheckInsRepository
+let sut: FetchUserCheckinHistoryUseCase
+
+describe('Fetch user check-ins history use case', () => {
+  beforeEach(async () => {
+    checkInsRepository = new InMemoryCheckInsRepository()
+    sut = new FetchUserCheckinHistoryUseCase(checkInsRepository)
+  })
+
+  agora no teste a gente tem que criar dois checkins em duas acadamias:
+   await checkInsRepository.create({
+        gym_id: 'gym01',
+        user_id:'user01',
+    })
+    await checkInsRepository.create({
+        gym_id: 'gym02',
+        user_id:'user01',
+    })
+
+    agora quando a ente for fazer nosso expects a primeira coisa que a gente pode verificar é que a lista tenha um tamanhoo de dois  expect(checkIns).toHaveLength(2)
+    vamos fazer outro expect que esse checkins seja iguam a um array com dois objetos e esses objetos tem que conter o gymid sendo 01 e o outro sendo 02
+    fica assim
+     expect(checkIns).toEqual([
+      expect.objectContaining({ gym_id: 'gym01' }),
+      expect.objectContaining({ gym_id: 'gym02' }),
+    ])
+    com isso os checkins coprovam que são listados.
+    mas ainda falta a parte de paginação
+    vamos começar pelos teste.
+    a gente vai copiar o teste anterior e colar mudando o nome para 
+    if can have 20 check ins per page
+
+    como sao 20 ao invez de a grnte copiar o codigo 20 vezes de criação a gente coloca detro de um for
+       for (let i = 1; i <= 22; i++) {
+      await checkInsRepository.create({
+        gym_id: `gym${i}`,
+        user_id: 'user01',
+      })
+    }
+    ou seja enquanto for menor de 22 ele vai rodar essa função e a cada vez ele vai incrementar 1 e o numero da gym vai ser sempre o mesmo numero do i
+    agora voltamos no caso de uso e no interface a gente coloca uma page
+    interface FetchUserCheckinHistoryUseCaseRequest {
+  userId: string
+  page: number
+}
+
+assim se gente no tete mandar uma pagina como page 2 devem ter 2 elemento dentro porque a segunda pagin vai ter o excedente de 20
+ test('if can have 20 check ins per page', async () => {
+    for (let i = 1; i <= 22; i++) {
+      await checkInsRepository.create({
+        gym_id: 'gym01',
+        user_id: 'user01',
+      })
+    }
+
+    const { checkIns } = await sut.execute({
+      userId: 'user01',
+      page: 2,
+    })
+
+    expect(checkIns).toHaveLength(2)
+  })
+
+  agora para fazer esse teste funcionar la no nosso repository e passar tambem a page
+    findManyByUserId(userId: string, page: number): Promise<CheckIn[]>
+  
+  agora no inmemory onde a gente implementa os metodos a gente esta filtrando. mas para dar so 20 a gente pode dar um slice.
+  no slice a gente pode pegar do numero da pagina-1 ou seja se for page1 ele nos devolve o indce0 do array vezes 20 porque assim se estiver na pagina 2 ele vai pra 1 * 20 e começa o registro do indice 20 do array. e o segundo argumento é so page * 20
+  fica assim:
+   async findManyByUserId(userId: string, page: number): Promise<CheckIn[]> {
+    return this.Itens.filter((item) => item.user_id === userId).slice(
+      (page - 1) * 20,
+      page * 20,
+    )
+  }
+}
+temos que passar a page no nosso useCase como parametro. o useCase fica assim:
+import { CheckIn } from '@prisma/client'
+import { CheckInRepository } from '@/repositories/check-ins-repository'
+
+interface FetchUserCheckinHistoryUseCaseRequest {
+  userId: string
+  page: number
+}
+interface FetchUserCheckinHistoryUseCaseResponse {
+  checkIns: CheckIn[]
+}
+export class FetchUserCheckinHistoryUseCase {
+  constructor(private checkInRepository: CheckInRepository) {}
+
+  async execute({
+    userId,
+    page,
+  }: FetchUserCheckinHistoryUseCaseRequest): Promise<FetchUserCheckinHistoryUseCaseResponse> {
+    const checkIns = await this.checkInRepository.findManyByUserId(userId, page)
+
+    return { checkIns }
+  }
+}
+
+
+
+
+
+
+
 
 
 
