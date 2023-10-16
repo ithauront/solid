@@ -1,4 +1,4 @@
-import { expect, test, describe, beforeEach, vi } from 'vitest'
+import { expect, test, describe, beforeEach } from 'vitest'
 import { InMemoryCheckInsRepository } from '../repositories/in-memory/in-memory-check-in-repository'
 import { FetchUserCheckinHistoryUseCase } from './fetch-user-checkins-history'
 

@@ -3388,6 +3388,99 @@ export class FetchUserCheckinHistoryUseCase {
   }
 }
 
+# caso de uso metricas
+
+vamos fazer um useCase para obter o numero de checkins feitos pelo usuario.
+vamos fazer um arquivo chamado get-user-metrics.ts
+e vamos copiar o checkin hitsoty
+e trocamos os nomes por GetUserMetricsUseCase
+vamos so precisar passar o userIr no request e a resposta vai ser o checkincount como sendo um numero.
+interface GetUserMetricsUseCaseRequest {
+  userId: string
+}
+interface GetUserMetricsUseCaseResponse {
+  checkInsCount: number
+}
+
+agora vamos la no nosso checkin repository para criar um metodo chamado countByUserId
+  countByUserId(userId: string): Promise<number>
+
+  agora vamos no inmemory e implementamos ele. a gente passa o userId diz que a promisse vai ser um number e ai a gente retorna a filtragem pelo userId e da um .length para ele retornar o tamanho.
+    async countByUserId(userId: string): Promise<number> {
+    return this.Itens.filter((item) => item.user_id === userId).length
+  }
+
+
+e agora a gente volta la no nosso getUserMetrics e faz os ajustes para os nomes retira o page e etc fica assim
+import { CheckInRepository } from '@/repositories/check-ins-repository'
+
+interface GetUserMetricsUseCaseRequest {
+  userId: string
+}
+interface GetUserMetricsUseCaseResponse {
+  checkInsCount: number
+}
+export class GetUserMetricsUseCase {
+  constructor(private checkInRepository: CheckInRepository) {}
+
+  async execute({
+    userId,
+  }: GetUserMetricsUseCaseRequest): Promise<GetUserMetricsUseCaseResponse> {
+    const checkInsCount = await this.checkInRepository.countByUserId(userId)
+    return { checkInsCount }
+  }
+}
+
+vamos agora criar o test
+get-user-metrics.spec.ts
+copiamos e colamos o hystory
+
+mudamos os nomes do describe/sut e etc para bater com getUserMetrics
+o cabeçalho fica assim:
+import { expect, test, describe, beforeEach } from 'vitest'
+import { InMemoryCheckInsRepository } from '../repositories/in-memory/in-memory-check-in-repository'
+import { GetUserMetricsUseCase } from './get-user-metrics'
+
+let checkInsRepository: InMemoryCheckInsRepository
+let sut: GetUserMetricsUseCase
+
+describe('get user metrics use case', () => {
+  beforeEach(async () => {
+    checkInsRepository = new InMemoryCheckInsRepository()
+    sut = new GetUserMetricsUseCase(checkInsRepository)
+  })
+
+agora a gente deixa so o test que ele faz os dois checkins. tiramos a pagina. mudamos o nome de checkins para checkinsCounts e o resultado deve ser igual a 2. a pagina de teste fica assim:
+import { expect, test, describe, beforeEach } from 'vitest'
+import { InMemoryCheckInsRepository } from '../repositories/in-memory/in-memory-check-in-repository'
+import { GetUserMetricsUseCase } from './get-user-metrics'
+
+let checkInsRepository: InMemoryCheckInsRepository
+let sut: GetUserMetricsUseCase
+
+describe('get user metrics use case', () => {
+  beforeEach(async () => {
+    checkInsRepository = new InMemoryCheckInsRepository()
+    sut = new GetUserMetricsUseCase(checkInsRepository)
+  })
+
+  test('if can get checkin counts from metrics', async () => {
+    await checkInsRepository.create({
+      gym_id: 'gym01',
+      user_id: 'user01',
+    })
+    await checkInsRepository.create({
+      gym_id: 'gym02',
+      user_id: 'user01',
+    })
+    const { checkInsCount } = await sut.execute({
+      userId: 'user01',
+    })
+
+    expect(checkInsCount).toEqual(2)
+  })
+})
+
 
 
 
