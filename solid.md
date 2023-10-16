@@ -3481,6 +3481,129 @@ describe('get user metrics use case', () => {
   })
 })
 
+# cso de uso de busca de academias
+vamos fazer um arquivo chamado searchGyms.ts e vamos copiar o create Gyms para ele
+a gente muda os nomes como sempre.
+na interface de request a gente vai colocar uma query com uma string. e vamos paginar tambem então vamos colocar page number tambem. e isso vai retornar uma lista de academias ou seja a resposta vai ter que ser gym [ ] array.
+interface SearchGymUseCaseParams {
+  query: string
+  page: number
+}
+interface SearchGymUseCaseResponse {
+  gyms: Gym[]
+}
+
+no execute a gente passa a query e a page e agente vai para o repositorio criar um novo metodo.
+  searchMany(query: string, page: number): Promise<Gym[]>
+
+  a gente colocou so searchMany porque no futuro a ente pode implementar e não usar so o titulo para pesquisar, ai o nome ja esta correto. podem=ndo receber searchMany por varias coisas.
+  agora vamos no gym in memory para implementar esse metodo. vamos fazer essa função retornar o this. filtrando por itens todos os que tiverem titulos que incluam a query e depois vbamos paginar isso de page -1 a 20 e depois de page * 20. fica assim:
+    async searchMany(query: string, page: number) {
+    return this.Itens.filter((item) => item.title.includes(query)).slice(
+      (page - 1) * 20,
+      page * 20,
+    )
+  }
+
+  agora voltando para o nosso useCase a gente muda a função para a searchMany e passa para ele o query e a pagina . e a gente retorna o gyms como a interface pede. fica assim:
+  import { Gym } from '@prisma/client'
+import { GymsRepository } from '@/repositories/gyms-repository'
+
+interface SearchGymUseCaseParams {
+  query: string
+  page: number
+}
+interface SearchGymUseCaseResponse {
+  gyms: Gym[]
+}
+export class SearchGymUseCase {
+  constructor(private gymsRepository: GymsRepository) {}
+
+  async execute({
+    query,
+    page,
+  }: SearchGymUseCaseParams): Promise<SearchGymUseCaseResponse> {
+    const gyms = await this.gymsRepository.searchMany(query, page)
+
+    return { gyms }
+  }
+}
+
+
+agora vamos para os testes.
+
+vamos pegar o fetchuserCheckin test para reaproveitar.
+vamos trocar todos os inmemory importação instanciação e etc 
+fica assim:
+import { InMemoryGymRepository } from '@/repositories/in-memory/in-memory-gym-repository'
+import { expect, test, describe, beforeEach } from 'vitest'
+import { SearchGymUseCase } from './search-gyms'
+
+let gymsRepository: InMemoryGymRepository
+let sut: SearchGymUseCase
+
+describe('search gyms use case', () => {
+  beforeEach(async () => {
+    gymsRepository = new InMemoryGymRepository()
+    sut = new SearchGymUseCase(gymsRepository)
+  })
+
+agora vamos mudar o nome do teste e vamos criar duas academias. uma com o titulo javascript gym e a outra com o titulo a criação das duas academias ficam assim:
+  test('if can search gms', async () => {
+    await gymsRepository.create({
+      title: 'javascript gym',
+      description: 'gym Description',
+      phone: '0108074561',
+      latitude: 27.8747279,
+      longitude: -49.4889672,
+    })
+    await gymsRepository.create({
+        title: 'typescript gym',
+        description: 'gym Description',
+        phone: '0108074561',
+        latitude: 27.8747279,
+        longitude: -49.4889672,
+    })
+
+    agora no nosso sut execute a gente recebe as gyms e passa como query
+    e no expect a gente pode colocar que esta esperando que  length seja 1 e em outro expect um objeto contendo como title o query qeu a gente passou e vamos dar um skip no teste sequente porque ainda não ajeitamos ele.
+    nosso teste fica assim:
+      test('if can search gms', async () => {
+    await gymsRepository.create({
+      title: 'javascript gym',
+      description: 'gym Description',
+      phone: '0108074561',
+      latitude: 27.8747279,
+      longitude: -49.4889672,
+    })
+    await gymsRepository.create({
+      title: 'typescript gym',
+      description: 'gym Description',
+      phone: '0108074561',
+      latitude: 27.8747279,
+      longitude: -49.4889672,
+    })
+    const { gyms } = await sut.execute({
+      query: 'javascript',
+      page: 1,
+    })
+
+    expect(gyms).toHaveLength(1)
+    expect(gyms).toEqual([expect.objectContaining({ title: 'javascript gym' })])
+  })
+  agora vamos para o teste que skipamos.
+  aproveitamos nosso hook que ja esta feito e passamos para ele um monte de academias.
+    for (let i = 1; i <= 22; i++) {
+      await gymsRepository.create({
+        title: `typescript gym${1}`,
+        description: 'gym Description',
+        phone: '0108074561',
+        latitude: 27.8747279,
+        longitude: -49.4889672,
+      })
+    }
+    e no sut aexecute a gente vai puxar o gyms vai passar para ele um query e ua pagina 2 e a gente espera que tenhade lenght a pagina fica assim:
+    
 
 
 

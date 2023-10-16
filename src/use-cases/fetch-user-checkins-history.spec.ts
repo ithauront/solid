@@ -34,7 +34,7 @@ describe('fetch user check-ins history use case', () => {
   test('if can have 20 check ins per page', async () => {
     for (let i = 1; i <= 22; i++) {
       await checkInsRepository.create({
-        gym_id: 'gym01',
+        gym_id: `gym${i}`,
         user_id: 'user01',
       })
     }
@@ -45,5 +45,9 @@ describe('fetch user check-ins history use case', () => {
     })
 
     expect(checkIns).toHaveLength(2)
+    expect(checkIns).toEqual([
+      expect.objectContaining({ gym_id: 'gym21' }),
+      expect.objectContaining({ gym_id: 'gym22' }),
+    ])
   })
 })
