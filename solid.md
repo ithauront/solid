@@ -3604,6 +3604,145 @@ agora vamos mudar o nome do teste e vamos criar duas academias. uma com o titulo
     }
     e no sut aexecute a gente vai puxar o gyms vai passar para ele um query e ua pagina 2 e a gente espera que tenhade lenght a pagina fica assim:
     
+ # buscar academias proximas
+    vamos criar um novo caso de uso chamado fetch-nearby-gyms.ts
+    vamos copiar a estrutura do searchgyms.
+    vamos trocar os nomes de searchgym para fetch nearby e vamos receber a latitude e longitude do usuario.
+    retornamos o array de gyms e temos que ter acesso no execute ao user latitude e longitude por enquanto fica assim:
+    import { Gym } from '@prisma/client'
+import { GymsRepository } from '@/repositories/gyms-repository'
+
+interface FetchNearbyGymsUseCaseParams {
+  userLatitude: number
+  userLongitute: number
+}
+interface FetchNearbyGymsUseCaseResponse {
+  gyms: Gym[]
+}
+export class FetchNearbyGymsUseCase {
+  constructor(private gymsRepository: GymsRepository) {}
+
+  async execute({
+    userLatitude,
+    userLongitute,
+  }: FetchNearbyGymsUseCaseParams):
+
+  agora temos que fazer um novo metodo no nosso repositorio de gyms
+  o metodo vai receber a latitude e longitude e devolver varias academias:
+    findManyNearby(userLatitude: number, userLongitute: number): Promise<Gym[]>
+
+    a latitude e longitude sãpo parametros que são numeros, porem assim fica dificil saber qual é qual porque nos vamos receber numeros assim (13451354,-163246234) e ai saber qual é quel pode ficar dificil, então pod isso a gente pode fazer uma interface no repositorio para passar isso como objeto. e agora podemos passar para o metodo os params como sendo tipados como essa interface e ai vamos receber la um objeto que vai dizer latitude: 143543 e longitude: 24352 assim a gente pode usar em outros lugares o nome e não os numeros. e vamos exportar essa interface parater acesso a ela em outros lugares.
+    fica assim a pagina de repoistorio:
+    import { Gym, Prisma } from '@prisma/client'
+
+export interface findManyNearbyParams {
+  latitude: number
+  longitude: number
+}
+
+export interface GymsRepository {
+  findById(gymId: string): Promise<Gym | null>
+  searchMany(query: string, page: number): Promise<Gym[]>
+  findManyNearby(params: findManyNearbyParams): Promise<Gym[]>
+  create(data: Prisma.GymCreateInput): Promise<Gym>
+}
+
+
+
+agora quando a gente usar o metodo a gente tem que usar aassim findmanyNearby(latitude: 1345234, longitude: 1235423) ai fica mais descritivo.
+
+vamos para o gyms in memoryu para implementar o metodo. como esta em memoria vamos fazer esse calculo de forma mais simples sem o todo o banco de dados como a gente tinha falado.
+agora a gente vai filtrar os itens pegando a distancia então a gente faz o filter dos itens e dentro deles a gentepassa a const de distanceBetweenTwo que a gente tinha criado no utils. e nessa função a gente passa como primeiro parametro um objeto com a latitude e longitude que vem dos params ou seja que a gente vai passar qudno chama a função e o segundo argumento da função vai ser um objeto com a latitude e longitude que vão vir dos itens filtrados no banco de dados. assim essa const vai devolver a distancia entre todos esses elementos ( sabendo que em um banco de dadosgigante seria um trabalho enorme porqe ele teria que bater em todos as entradas do banco de dados e retornar uma distancia. por isso no banco de dados real vamos ter que mudar um pouco esse sistema.)
+agora a gente pode retornar dessa filtragem se a distancia for menor que 10 
+ou sja a nossa filtragem vai devolvr tudo que a distancia seja menot que 10 km. o metodo fica assim:
+ async findManyNearby(params: findManyNearbyParams) {
+    return this.Itens.filter((item) => {
+      const distance = getDistanceBetweenCoordinates(
+        {
+          latitude: params.latitude,
+          longitude: params.longitude,
+        },
+        {
+          latitude: item.latitude.toNumber(),
+          longitude: item.longitude.toNumber(),
+        },
+      )
+      return distance < 10
+    })
+  }
+
+  voltamos para o nosso uso de caso passamos a função como find many nearby e passamos para ela um objeto com latitude e longitude sendo igual aos userLatitude e longitude e retonra um gyms.. fica assim o caso de uso.
+  import { Gym } from '@prisma/client'
+import { GymsRepository } from '@/repositories/gyms-repository'
+
+interface FetchNearbyGymsUseCaseParams {
+  userLatitude: number
+  userLongitute: number
+}
+interface FetchNearbyGymsUseCaseResponse {
+  gyms: Gym[]
+}
+export class FetchNearbyGymsUseCase {
+  constructor(private gymsRepository: GymsRepository) {}
+
+  async execute({
+    userLatitude,
+    userLongitute,
+  }: FetchNearbyGymsUseCaseParams): Promise<FetchNearbyGymsUseCaseResponse> {
+    const gyms = await this.gymsRepository.findManyNearby({
+      latitude: userLatitude,
+      longitude: userLongitute,
+    })
+
+    return { gyms }
+  }
+}
+
+agora vamos fazer o arquivo de teste fetchNearbyGyms.spec.ts vamos colar nele o teste do searchgyms. e adaptar as coisas nele como sempre.
+agora no teste vamos cadastrar duas gyms e na execução a gente vai colocar o userLatitude e longitude que a gente tava usando nos testes. as duas gyms podem ter a mesma latitude e longitude. 
+# tinha um pequeno erro nas implementação do metodo no useCase estava escrito londitute eu tive que mudar para longitude atenção a esse erro se for copiar algo darui
+
+porem seria legal a gente coloca uma academia com mais de dez km tambem que ela não deveria entrar. então vamos cadastrar uma outra academia  então uma das academias vai ser a nearGym e a outra a farGym. agora no expect vamos dar que a gente quer que ele retone o array com apenas uma academia e que tenha oum objeto contendo o titulo near gym . fica assim o teste:import { InMemoryGymRepository } from '@/repositories/in-memory/in-memory-gym-repository'
+import { expect, test, describe, beforeEach } from 'vitest'
+
+import { FetchNearbyGymsUseCase } from './fetch-nearby-gyms'
+
+let gymsRepository: InMemoryGymRepository
+let sut: FetchNearbyGymsUseCase
+
+describe('fetch nearby gyms use case', () => {
+  beforeEach(async () => {
+    gymsRepository = new InMemoryGymRepository()
+    sut = new FetchNearbyGymsUseCase(gymsRepository)
+  })
+
+  test('if can find nearby gyms', async () => {
+    await gymsRepository.create({
+      title: 'near gym',
+      description: 'gym Description',
+      phone: '0108074561',
+      latitude: -27.2982852,
+      longitude: -49.6481891,
+    })
+    await gymsRepository.create({
+      title: 'far gym',
+      description: 'gym Description',
+      phone: '0108074561',
+      latitude: 27.0610928,
+      longitude: -49.5229501,
+    })
+    const { gyms } = await sut.execute({
+      userLatitude: -27.2982852,
+      userLongitude: -49.6481891,
+    })
+
+    expect(gyms).toHaveLength(1)
+    expect(gyms).toEqual([expect.objectContaining({ title: 'near gym' })])
+  })
+})
+
+ a gente pode ate i na no nosso inmemory onde a gente implementa o metodo e dar um console.log (distance) ai ele vai retornar a distancia das duas academias para a gente em numero tambem quando a gente rodar os testes.
+
 
 
 
