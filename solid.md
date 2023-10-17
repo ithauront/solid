@@ -3743,6 +3743,178 @@ describe('fetch nearby gyms use case', () => {
 
  a gente pode ate i na no nosso inmemory onde a gente implementa o metodo e dar um console.log (distance) ai ele vai retornar a distancia das duas academias para a gente em numero tambem quando a gente rodar os testes.
 
+ # validar check in
+ vamos fazer um arquivo de usecase para validate checkin
+ o sistema de validar o checkin pode ser manual a pessoa da academia clica para validar ou é integrado que a pessoa a passar pela catraca vai automaticamente para nosso programa.
+ vamos copiar o useCase de checkin nele. mudar os nomes para validateCheckin e no interface do request vamos passar o checkinID que vai ser string. o retorno vai ser o checkin(mas podia tambem ser nada.)
+ no  constructor vamos pegar so o checkin repository no execute vamos passar o checkinIDagora vamos no checkinRepository e criamos um metodo chamado find by id.
+   findCheckinById(id: string): Promise<CheckIn | null>
+   agora vamos no inmemory implementar.
+
+    async findCheckinById(id: string) {
+    const checkIn = this.Itens.find((item) => item.id === id)
+    if (!checkIn) {
+      return null
+    }
+    return checkIn
+  }
+
+  agora voltamos para o usu de caso.
+  a gente começa buscando o nosso chekin e caso a gente não encontre vamos dar ul erro de resorce not found assim:
+  async execute({
+    checkInID,
+  }: ValidateCheckInUseCaseRequest): Promise<ValidateCheckInUseCaseResponse> {
+    const checkIn = await this.checkInRepository.findCheckinById(checkInID)
+    if (!checkIn) {
+      throw new ResourceNotFoundError()
+    }
+
+e caso a gente encontre a gente vai atualizar a informação validated at ou seja pegamos o validatedat dele e damos um = new Date() para salvar com a data atual
+ checkIn.validated_at = new Date()
+ e agora vamos salvar esse checkin novamnte no nosso banco de dados. então agora alem do metodo create a gente vai ter o metodo save no nosso repository. que vai receber um checkin do tipo checkin e promete um checkin assim
+ save(checkIn: CheckIn): Promise<CheckIn>
+
+ vamos agora no in memory e vamos inplementar esse metodo save.
+ nele nos vamos procurar pelo index dessa forma:
+   const checkInIndex = this.Itens.findIndex(item=> item.id === checkIn.id)
+   se a gente achar, ou seja se o index for >= 0 significa que existe um checkin que é igual ao checkin que a gente mandou. ou seja se ele não achar ele manda -1 se ele achar ele manda a posição desse checkin no array. ai a gente pega e atualiza esse checkin com o checkin que a gente esta enviando na requisição. e se não a gente so retorna o checkin. fia assim:
+     async save(checkIn: CheckIn) {
+    const checkInIndex = this.Itens.findIndex((item) => item.id === checkIn.id)
+    if (checkInIndex >= 0) {
+      this.Itens[checkInIndex] = checkIn
+    }
+    return checkIn
+  }
+
+  voltamos para o uso de caso.
+  passamos um await chamalos o checkin repository e passamos o metodo save passando o checkin e depois retornamos o checkin a pagina fica assim:
+  import { CheckIn } from '@prisma/client'
+import { CheckInRepository } from '@/repositories/check-ins-repository'
+import { GymsRepository } from '@/repositories/gyms-repository'
+import { ResourceNotFoundError } from './errors/resource-not-found-erros'
+import { getDistanceBetweenCoordinates } from '@/utils/get-distance-between-coordinates'
+import { MaxDistanceError } from './errors/max-distance-error'
+import { MaxNumberOfCheckinError } from './errors/max-number-of-checkin-error'
+
+interface ValidateCheckInUseCaseRequest {
+  checkInID: string
+}
+interface ValidateCheckInUseCaseResponse {
+  checkIn: CheckIn
+}
+export class ValidateCheckInUseCase {
+  constructor(private checkInRepository: CheckInRepository) {}
+
+  async execute({
+    checkInID,
+  }: ValidateCheckInUseCaseRequest): Promise<ValidateCheckInUseCaseResponse> {
+    const checkIn = await this.checkInRepository.findCheckinById(checkInID)
+    if (!checkIn) {
+      throw new ResourceNotFoundError()
+    }
+
+    checkIn.validated_at = new Date()
+
+    await this.checkInRepository.save(checkIn)
+
+    return { checkIn }
+  }
+}
+
+agora vamos para os testes.
+criamos o arquivo com spec no fim do nome como sempre
+vamos copiar nele o teste do checkin e deixar apenas o primeiro teste.
+vamos comentar a parte das datas porque mais pra frente a gente vai utilizar elas.
+vamos tirar a criação do before all e vamos tamber tirar o gym repository.
+vamos mudar checkin use Case para validateCheckin use case no sut e etc.
+fica assim:
+import { expect, test, describe, beforeEach, vi, afterEach } from 'vitest'
+import { InMemoryCheckInsRepository } from '../repositories/in-memory/in-memory-check-in-repository'
+import { ValidateCheckInUseCase } from './validate-check-in'
+
+let checkInsRepository: InMemoryCheckInsRepository
+let sut: ValidateCheckInUseCase
+
+describe('validate check-in use case', () => {
+  beforeEach(async () => {
+    checkInsRepository = new InMemoryCheckInsRepository()
+    sut = new ValidateCheckInUseCase(checkInsRepository)
+
+    //   vi.useFakeTimers()
+  })
+  afterEach(() => {
+    //   vi.useRealTimers()
+  })
+  e o teste vai ser if can validate checkin
+  então para validar esse checkin a gente vai ter que criar um checkin
+  chamando o checkinRepository e usando o metodo create.
+     const checkIn = await checkInsRepository.create({
+      gym_id: 'gym01',
+      user_id: 'user01',
+    })
+  
+  agora a gente chama o sut.execut e passamos para ele o checkinID como checkin.id ou seja vamos passar como o parametro o id do checkin que a gente acabou de criar.
+  agora a gente expera que o checkin no banco de memoria tenha a data de validação nova. para conferir isso a gente vai chamar o checkin que a gente criou e chamar de createdCheckIn e do sutExecute a gente vai pegar o checkin que ele retorna.
+     const createdCheckIn = await checkInsRepository.create({
+      gym_id: 'gym01',
+      user_id: 'user01',
+    })
+    const { checkIn } = await sut.execute({
+      checkInID: createdCheckIn.id,
+    })
+
+então a gente faz o primeiro expect que do checkinValidated a data de retorno seja qualquer data.
+  expect(checkIn.validated_at).toEqual(expect.any(Date))
+
+  e tambem um expect que no checkin repository dentro dos itens o primeiro itens a data de validaçãoestekja preenchida ou seja to euqyal anydate.
+  agora vamos fazer um outro teste.
+para que não possa validar um checkin inexistente vamos colocar tudo dentro de um expect. a gente obviamente não cria um checkin. e passa como id uma string dizendo que esse checkin nao, existe. agora o nosso expect tem que rejeitar sendo uma instancia do erro de resousrce not found.
+  a pagina fica assim:
+  import { expect, test, describe, beforeEach, vi, afterEach } from 'vitest'
+import { InMemoryCheckInsRepository } from '../repositories/in-memory/in-memory-check-in-repository'
+import { ValidateCheckInUseCase } from './validate-check-in'
+
+let checkInsRepository: InMemoryCheckInsRepository
+let sut: ValidateCheckInUseCase
+
+describe('validate check-in use case', () => {
+  beforeEach(async () => {
+    checkInsRepository = new InMemoryCheckInsRepository()
+    sut = new ValidateCheckInUseCase(checkInsRepository)
+
+    //   vi.useFakeTimers()
+  })
+  afterEach(() => {
+    //   vi.useRealTimers()
+  })
+  test('if can validate check in', async () => {
+    const createdCheckIn = await checkInsRepository.create({
+      gym_id: 'gym01',
+      user_id: 'user01',
+    })
+    const { checkIn } = await sut.execute({
+      checkInID: createdCheckIn.id,
+    })
+
+    expect(checkIn.validated_at).toEqual(expect.any(Date))
+    expect(checkInsRepository.Itens[0].validated_at).toEqual(expect.any(Date))
+  })
+    test('if cannot validate an inexistent checkin', async () => {
+    await expect(() =>
+      sut.execute({
+        checkInID: 'inexistent-checkin-id',
+      }),
+    ).rejects.toBeInstanceOf(ResourceNotFoundError)
+  })
+})
+})
+
+com todos os nossos casos de uso criados a gente ainda tem umas coisas que precisam ser vistas das nossas regras de negocio. que são que o checkin so pode ser validado até no maximo 20 minutos apos a entrada e que so um admionistrador pode validar assim como a academia so pode ser criada por um adm.
+
+    
+
+
+
 
 
 
