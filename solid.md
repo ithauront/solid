@@ -3911,7 +3911,119 @@ describe('validate check-in use case', () => {
 
 com todos os nossos casos de uso criados a gente ainda tem umas coisas que precisam ser vistas das nossas regras de negocio. que são que o checkin so pode ser validado até no maximo 20 minutos apos a entrada e que so um admionistrador pode validar assim como a academia so pode ser criada por um adm.
 
-    
+# tempo limite de validaçao
+vamos fazer isso usando o tdd então começamos por testes
+conyinuamos no validatesoec e habilitamos o mocking de data.
+e criamos um teste e passamos uma data para ele
+  test('if cannot validated checkin after 20min of creation', async () => {
+    vi.setSystemTime(new Date(2023, 0, 1, 13, 40))
+  })
+
+  agora a gente copia o created checkin e o sut execute que temos nos outros testes para esse teste tambem
+  porem la no nosso inmemory a nossa data de criação usa o newDate()  então se o new date é chamado logo depois dessa linha que a gente deu de setSystem ou seja se a gente criar um checkin depois dessa linha. ele vai usar a nossa linha de mock que a gente setou no setSystem. poremos então setar uma nova data depois da criação do checkin para antes da validação. ao inves de setar uma nova data a gente pode usar a função advance timmersbytime e dentro dela passamos o numero de mili segundos que queremos avançar nosso tempo. ou seja agora depois disso quando o newDate for chamado ele vai ser chamado 21 minutos depois dessa criação. fica assim: 
+    vi.setSystemTime(new Date(2023, 0, 1, 13, 40))
+
+    const createdCheckIn = await checkInsRepository.create({
+      gym_id: 'gym01',
+      user_id: 'user01',
+    })
+
+    vi.advanceTimersByTime(1000 * 60 * 21) // 21 minutes
+
+    const { checkIn } = await sut.execute({
+      checkInID: createdCheckIn.id,
+    })
+
+    agor anos esperamos que essa validação de um erro e colocamos na verdade o await sut dentro do expect. o teste fica assim:
+    test('if cannot validated checkin after 20min of creation', async () => {
+    vi.setSystemTime(new Date(2023, 0, 1, 13, 40))
+
+    const createdCheckIn = await checkInsRepository.create({
+      gym_id: 'gym01',
+      user_id: 'user01',
+    })
+
+    vi.advanceTimersByTime(1000 * 60 * 21) // 21 minutes
+
+    await expect(() =>
+      sut.execute({
+        checkInID: createdCheckIn.id,
+      }),
+    ).rejects.toBeInstanceOf(Error)
+  })
+
+  agora vamos para o useCase de validateCheckin
+  antes dele atualizar a data do validate a gente vai fazer uma condição. 
+  vamos criar uma constante para calcular a diferença de tempo niusso nos vamos usar o dayJs passar para ele uma new date e usar o metodu diff e passar para ele o checkin.created_At e como segundo parametro uma string com minutes. esse metodo vai nos dar a diferença em minutos entre esses dois horarios.
+    const distanceInMinutesFromCheckIn = dayjs(new Date()).diff(
+      checkIn.created_at,
+      'minutes',
+    )
+colocamos a distancia de agora para a data do checkin porque a data do checkin sempre vai ser anterior. assim a gente usa uma data maior menos uma data menor e teremos uma distancia em positivo.
+    agora a gente vai dizer qeu se o distanceInMinutes  for maior que 20 da um erro.
+    a pagina fica ssim:
+    import { CheckIn } from '@prisma/client'
+import { CheckInRepository } from '@/repositories/check-ins-repository'
+import { GymsRepository } from '@/repositories/gyms-repository'
+import { ResourceNotFoundError } from './errors/resource-not-found-erros'
+import { getDistanceBetweenCoordinates } from '@/utils/get-distance-between-coordinates'
+import { MaxDistanceError } from './errors/max-distance-error'
+import { MaxNumberOfCheckinError } from './errors/max-number-of-checkin-error'
+import dayjs from 'dayjs'
+
+interface ValidateCheckInUseCaseRequest {
+  checkInID: string
+}
+interface ValidateCheckInUseCaseResponse {
+  checkIn: CheckIn
+}
+export class ValidateCheckInUseCase {
+  constructor(private checkInRepository: CheckInRepository) {}
+
+  async execute({
+    checkInID,
+  }: ValidateCheckInUseCaseRequest): Promise<ValidateCheckInUseCaseResponse> {
+    const checkIn = await this.checkInRepository.findCheckinById(checkInID)
+    if (!checkIn) {
+      throw new ResourceNotFoundError()
+    }
+
+    const distanceInMinutesFromCheckIn = dayjs(new Date()).diff(
+      checkIn.created_at,
+      'minutes',
+    )
+
+    if (distanceInMinutesFromCheckIn > 20) {
+      throw new Error()
+    }
+
+    checkIn.validated_at = new Date()
+
+    await this.checkInRepository.save(checkIn)
+
+    return { checkIn }
+  }
+}
+
+para melhorar a gente vai criar um erro especifico. latecheckinvalidation error.
+salvamos e voltamos la e colocamos esse erro no lugar do error e no teste a gente tambem adapta o errr para ser esse erro.
+export class LateCheckInValidationError extends Error {
+  constructor() {
+    super('Check-in can only be validateduntil 20 minutes after creation')
+  }
+}
+no use Case o erro fica assim:
+    if (distanceInMinutesFromCheckIn > 20) {
+      throw new LateCheckInValidationError()
+    }
+e no teste assim:
+  await expect(() =>
+      sut.execute({
+        checkInID: createdCheckIn.id,
+      }),
+    ).rejects.toBeInstanceOf(LateCheckInValidationError)
+  })
+  
 
 
 
