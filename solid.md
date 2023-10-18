@@ -4024,6 +4024,170 @@ e no teste assim:
     ).rejects.toBeInstanceOf(LateCheckInValidationError)
   })
   
+  # prisma repository
+  nos terminamos praticamente todos os casos de uso.
+  os casos de uso são o nucleo de nossa aplicação e são a parte mais importante dela. e agora que eles estãopraticamente feitos a gente pode começar a expor eles ao mundo, ou seja tirar ele apenas do ambiente de teste e expor ele aos register, as rotas, ao banco de dados. então a gente pode implementar por exezmplo os metodos no nosso prisma repository.
+  vamos na pasta repositories/prisma e vamos abrir o PrismaUsersRepostory (não confundir com o users-repository que esta fora da pasta prisma)
+  a pagina é assim:
+  import { prisma } from '@/lib/prisma'
+import { Prisma, User } from '@prisma/client'
+import { UsersRepository } from '../users-repository'
+
+export class PrismaUsersRepository implements UsersRepository {
+  findById(id: string): Promise<User | null> {
+    throw new Error('Method not implemented.')
+  }
+
+  async findByEmail(email: string) {
+    const user = await prisma.user.findUnique({
+      where: { email },
+    })
+
+    return user
+  }
+
+  async create(data: Prisma.UserCreateInput) {
+    const user = await prisma.user.create({
+      data,
+    })
+    return user
+  }
+}
+
+
+por exemplo o find by id não esta implementado. a gente pode fazer ele com base na de email.
+fica assim a parte do id 
+async findById(id: string): Promise<User | null> {
+    const user = await prisma.user.findUnique({
+      where: { id },
+    })
+
+    return user
+  }
+
+  e ai o nosso repositorio do prisma para a parte de usuarios esta feita.
+  vamos criar agora o 
+  prisma-check-in-repository.ts
+  nele vamos exportar uma classe prismaCheckInRepository e implementar a interface checkinRepository assim
+  export class PrismaCheckInRepository implements CheckInRepository
+
+  agora a gente pode clicar na lampara e implementar a interface assim ele vai implementar tudo mas ainda temos que ajustar porque o nosso promisse sai dando coisa por coisa ao invez da intarface na verdade não precisamos da promisse aqui. . corrigindo a implementação fica assi:
+  import { CheckIn, Prisma } from '@prisma/client'
+import { CheckInRepository } from '../check-ins-repository'
+
+export class PrismaCheckInRepository implements CheckInRepository {
+  create(data: Prisma.CheckInUncheckedCreateInput) {
+    throw new Error('Method not implemented.')
+  }
+
+  save(checkIn: CheckIn) {
+    throw new Error('Method not implemented.')
+  }
+
+  findCheckinById(id: string) {
+    throw new Error('Method not implemented.')
+  }
+
+  findManyByUserId(userId: string, page: number) {
+    throw new Error('Method not implemented.')
+  }
+
+  countByUserId(userId: string): Promise<number> {
+    throw new Error('Method not implemented.')
+  }
+
+  findByUserIdOnDate(userId: string, date: Date) {
+    throw new Error('Method not implemented.')
+  }
+}
+
+
+agora a gente pode tirar os erros e implementar os metodos.
+no find byid a gente vai fazer um checkin ser igual ao await prisma(que vem do lib) .checkin.findUnique onde tem o id ou seja onde tem o unico id igual ao id que a função recebe. e retornmaos o checkin
+no create a gente faz igual so que ao invez do find unique a gente usa o create e passa para ele um objeto com o nosso data.
+no save para não ficar o nome checkin repetitrivo a gente muda o nome do parametro para data. e ai a gente faz o checkin ser igual ao update where o id é igual ao data id e ele dar o update com o cata e retornar o checkin.
+no count a gente faz a const count ser igual ao metodo count do prisma onde o user_id do checkin for igual ao userId que a gente manda como parametro e retornamos essa count
+  no findMany a gente tem que lebrar da paginação. primeiro vamos fazer uma const checkins no plural ser igual ao metodo findMany do prisma onde o user_id é igual ao userId do parametro. depois disso a gente tem que ainda na funão findMany como segundo argumento o skip e o take eles servem para quandos items a gente quer trazer, que são e o skip para qantos itens a gente quer pular.ai no skip a gente faz a loica do page-1 * 20 que ai ele pula os 20 anteriores ou os 40 ou 0 se for na primeira pagina. e ai a gente retorna depis os checkins
+  no find by user id on date a gente tem ocalculo de start of day e end of day e importamos o dayjs
+  const startOfDay = dayjs(date).startOf('date')
+    const endOfDay = dayjs(date).endOf('date')
+    quando o checkin é criado no banco de dado ele é criado com hora minuto e segundo e a gente quer discartar umas coisas como os segundos e etc a gente quer so saber o dia.
+    vamos usar uma estrategia de primeiro procrar no banco de dados por um checkin porem usando o findFirst poorque queremos encontrar um unico checkin que batra com as condições que temos aqui e nos vamos usar o created_at que não tem unic la no nosso banco de dados então nao podemos usar o findUnique.
+    entéao nos passamos o userId igual ao user ai e para o created_at a gente passa uma objeto que pode elevar o filtro da data que vamos passar.a gente pode usar o equals que sera uma tada igual. mas temos os metodos gt gte lt e lte que é greater than / greaterthanequal e a mesma coisa com os lower than.
+    enté"o a gente vai usar o gte : start of day ou seja o checkin vai ser feito apos o inicio do dia. e lower than equal end of day e temos que converter o endofday e star para uma data com o toDate(). depois a gente retorna o checkin e esta tudo feito.
+    a pagina fica assim e nossos dois prisma repositorio tanto o de user quanto o de checkin estão prontos:
+    import { CheckIn, Prisma } from '@prisma/client'
+import { CheckInRepository } from '../check-ins-repository'
+import { prisma } from '@/lib/prisma'
+import dayjs from 'dayjs'
+
+export class PrismaCheckInRepository implements CheckInRepository {
+  async create(data: Prisma.CheckInUncheckedCreateInput) {
+    const checkIn = await prisma.checkIn.create({ data })
+    return checkIn
+  }
+
+  async save(data: CheckIn) {
+    const checkIn = await prisma.checkIn.update({
+      where: {
+        id: data.id,
+      },
+      data,
+    })
+    return checkIn
+  }
+
+  async findCheckinById(id: string) {
+    const checkIn = await prisma.checkIn.findUnique({
+      where: {
+        id,
+      },
+    })
+    return checkIn
+  }
+
+  async findManyByUserId(userId: string, page: number) {
+    const checkIns = await prisma.checkIn.findMany({
+      where: {
+        user_id: userId,
+      },
+      take: 20,
+      skip: page - 1 * 20,
+    })
+    return checkIns
+  }
+
+  async countByUserId(userId: string) {
+    const count = await prisma.checkIn.count({
+      where: {
+        user_id: userId,
+      },
+    })
+    return count
+  }
+
+  async findByUserIdOnDate(userId: string, date: Date) {
+    const startOfDay = dayjs(date).startOf('date')
+    const endOfDay = dayjs(date).endOf('date')
+    const checkIn = await prisma.checkIn.findFirst({
+      where: {
+        user_id: userId,
+        created_at: {
+          gte: startOfDay.toDate(),
+          lte: endOfDay.toDate(),
+        },
+      },
+    })
+    return checkIn
+  }
+}
+
+
+
+
+
+
+
 
 
 
