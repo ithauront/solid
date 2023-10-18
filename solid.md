@@ -4152,7 +4152,7 @@ export class PrismaCheckInRepository implements CheckInRepository {
         user_id: userId,
       },
       take: 20,
-      skip: page - 1 * 20,
+      skip: (page - 1) * 20,
     })
     return checkIns
   }
@@ -4182,6 +4182,29 @@ export class PrismaCheckInRepository implements CheckInRepository {
   }
 }
 
+# repositorio de academias
+criamos o aruivo do prisma gym repository e fazemos a classe para implementar o gymsRepository e clicamos na lampada para implementar. mesmo sistema do outro.
+no metodo find by id a gente da o find unique onde o id é igual ao id que a gente passa e retronamos um gym.
+no reate a gente passa o metodo create do prisma.gym e para ele a gente passa a data dentro de um objeto e retornamos o gym.
+no searchMany a gente passa a const gyms no plural e a gente passa o metodo findMany com where title e ai a gente passa um objeto para o title para pegar o contain e ai no contain a gente passa a query.
+para a paginação a gente faz o take 20 e o skip(page-1) * 20 a gente bota o page -1 entre parenteses para ele não multiplicar antes o -1 por 20 . e damos um return gyms
+até ai tudo bem. porem chegamos na find any nearby
+a gente tinha feito no inMemory que é algo que usa apenas javascript aquela função para calcular as academias proximas, porem essa função não funciona mais quando a gente for em um banco de dados real, que vai ter outras linguagens. pore isso precisamos implementar sse metodo de uma forma diferente.
+ou seja o nosso utils gtdistancebetweecoordinates não é mais tão util agora a n ão ser que a gente passasse todas as entradas do banco de dados por ele. o que daria um trabalho enormoe em um banco grande e levaria muito tempo. por isso é uma escolha que apesar de fucnionar esta errada.
+então aqui a gente vai precisar selecionar as academias proximas ja direto no sql.
+então existe uma query parecida com essa do javascript que a gente fez no utils qe existe cpara sql. a gente pode copiar essa query; 
+A query SQL apresentada está realizando uma busca de todas as academias que estão a uma distância máxima de 10km da localização representada pela latitude e longitude informadas como parâmetros. A fórmula utilizada no WHERE é conhecida como Haversine Formula, e é utilizada para calcular a distância entre dois pontos em um globo. O resultado é multiplicado por 6371 para obter a distância em quilômetros.
+SELECT * from gyms
+WHERE ( 6371 * acos( cos( radians(${latitude}) ) * cos( radians( latitude ) ) * cos( radians( longitude ) - radians(${longitude}) ) + sin( radians(${latitude}) ) * sin( radians( latitude ) ) ) ) <= 10
+
+porem para implementar isso o prisma que nos ajuda muito com suas tarefas ja tipificadas como achar algo por id e tudo mais. ele não funciona para todos os casos. e as vezes a gente precisa escrever sql nativo. para então buscar as academias proximas nos vamos usar o await prisma.$queryRaw`` ou seja usamos um metodo do prisma que é fazer os query em sql.
+ai dentro dessas tamplate literals a gente pode fazer o select que a gente quiser ou o comando sql que a gente quiser.
+vamos cmeçar a implementar esse metodo então.
+a gete vai nos params pegar a latitude e a longitude por uma desestruturação
+async findManyNearby({latitude, longitude}: findManyNearbyParams) {
+  agora a gente da o $queryRaw e seleciono todas as academias com um where do calculo que pega essas latitude e longitude e ve se é a menos de 10km como explicado acima.
+e depois desse query a gente da um returns gyms.
+porem a função fica com o type dela como unknown e isso não é bom no typescript. esse type esta assim porque quando a gente quando a gente faz uma query raw o prisma não consegue entender qual é o formato de retorno dessa query. então a gente pode tipificar o wueryraw para dizer para ele qual é o retorno. então depois do wueryRaw a gente pode usar o <> e entro dele pegar o Gym[] uma lista de academias. sendo que esse Gym vem do prismaclient.
 
 
 
