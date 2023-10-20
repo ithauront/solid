@@ -4206,6 +4206,106 @@ async findManyNearby({latitude, longitude}: findManyNearbyParams) {
 e depois desse query a gente da um returns gyms.
 porem a função fica com o type dela como unknown e isso não é bom no typescript. esse type esta assim porque quando a gente quando a gente faz uma query raw o prisma não consegue entender qual é o formato de retorno dessa query. então a gente pode tipificar o wueryraw para dizer para ele qual é o retorno. então depois do wueryRaw a gente pode usar o <> e entro dele pegar o Gym[] uma lista de academias. sendo que esse Gym vem do prismaclient.
 
+# factories
+vamos criar factories para automatizar o trabalho de criação de um caso de uso com todas as suas dependencias
+vamos criar um para cada useCase os arquivos vao se chamar make(seguido do nome do useCase)
+agora vamos em cada um deles. 
+a gente vai copiar o factory do autenticate que usa o usersRepository e vamos colar no getuser profile e ai a gente muda o nome da função.
+a gente troca a const autenticateUseCase por so useCase para na hora que copiar e colar não ter que ficar mudando sempre (igual o sut). e mudamos e ela para o new GetUserProfileUseCase importando ele. deletamos a importação do autenticate e mudamos o retorno apenas para o useCase. fica assim:
+import { PrismaUsersRepository } from '@/repositories/prisma/PrismaUsersRepository'
+import { GetUserProfileUseCase } from '../get-user-profile'
+
+export function makeGetUserProfileUseCase() {
+  const prismaUsersRepositories = new PrismaUsersRepository()
+  const useCase = new GetUserProfileUseCase(prismaUsersRepositories) // the file that need a useCase is the file that will send the dependencies as params to the useCase
+
+  return useCase
+}
+
+vamos fazer o userMetrics a ideia é a mesma mas ele usa o checkin repository então temos que mudar isso. fica assim:
+import { GetUserMetricsUseCase } from '../get-user-metrics'
+import { PrismaCheckInRepository } from '@/repositories/prisma/prisma-check-in-repository'
+
+export function makeGetUserMetricsUseCase() {
+  const prismaCheckInRepositories = new PrismaCheckInRepository()
+  const useCase = new GetUserMetricsUseCase(prismaCheckInRepositories) // the file that need a useCase is the file that will send the dependencies as params to the useCase
+
+  return useCase
+}
+
+para o checkin ele usa duas dependendencias tanto o gym quanto o chekcin então tem que instanciar tambem o gym e passar como segundo argumento. fica assi:
+import { PrismaGymRepository } from '@/repositories/prisma/prisma-gym-repository'
+import { CheckInUseCase } from '../check-in'
+import { PrismaCheckInRepository } from '@/repositories/prisma/prisma-check-in-repository'
+
+export function makeCheckInUseCase() {
+  const prismaCheckInRepositories = new PrismaCheckInRepository()
+  const gymsRepository = new PrismaGymRepository()
+  const useCase = new CheckInUseCase(prismaCheckInRepositories, gymsRepository) // the file that need a useCase is the file that will send the dependencies as params to the useCase
+
+  return useCase
+}
+
+vamos copiar o metrics e passar ele para o fetchusecheckinhistoyr emudar o nome.
+fica assim:
+import { FetchUserCheckinHistoryUseCase } from '../fetch-user-checkins-history'
+import { PrismaCheckInRepository } from '@/repositories/prisma/prisma-check-in-repository'
+
+export function makeFetchUserCheckInHistoryUseCase() {
+  const prismaCheckInRepositories = new PrismaCheckInRepository()
+  const useCase = new FetchUserCheckinHistoryUseCase(prismaCheckInRepositories) // the file that need a useCase is the file that will send the dependencies as params to the useCase
+
+  return useCase
+}
+mesma coisa para o validate
+import { PrismaCheckInRepository } from '@/repositories/prisma/prisma-check-in-repository'
+import { ValidateCheckInUseCase } from '../validate-check-in'
+
+export function makeValidateCheckInUseCase() {
+  const prismaCheckInRepositories = new PrismaCheckInRepository()
+  const useCase = new ValidateCheckInUseCase(prismaCheckInRepositories) // the file that need a useCase is the file that will send the dependencies as params to the useCase
+
+  return useCase
+}
+
+agora vamos para o searchgyms
+mudamos a instanciação para pegar a academia e os nomes
+import { SearchGymUseCase } from '../search-gyms'
+import { PrismaGymRepository } from '@/repositories/prisma/prisma-gym-repository'
+
+export function makeSearchGymsUseCase() {
+  const gymRepository = new PrismaGymRepository()
+  const useCase = new SearchGymUseCase(gymRepository) // the file that need a useCase is the file that will send the dependencies as params to the useCase
+
+  return useCase
+}
+
+fazemos o fetch nearby gym no mesmo estilo fica assim:
+import { FetchNearbyGymsUseCase } from '../fetch-nearby-gyms'
+import { PrismaGymRepository } from '@/repositories/prisma/prisma-gym-repository'
+
+export function makeFetchNearbyGymsUseCase() {
+  const gymRepository = new PrismaGymRepository()
+  const useCase = new FetchNearbyGymsUseCase(gymRepository) // the file that need a useCase is the file that will send the dependencies as params to the useCase
+
+  return useCase
+}
+
+mesma coisa para o create gym fica assim:
+import { CreateGymUseCase } from '../create-gym'
+import { PrismaGymRepository } from '@/repositories/prisma/prisma-gym-repository'
+
+export function makeCreateGymUseCase() {
+  const gymRepository = new PrismaGymRepository()
+  const useCase = new CreateGymUseCase(gymRepository) // the file that need a useCase is the file that will send the dependencies as params to the useCase
+
+  return useCase
+}
+
+com isso temos todos os nossos factories criados.
+
+
+
 
 
 
