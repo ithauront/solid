@@ -4304,6 +4304,231 @@ export function makeCreateGymUseCase() {
 
 com isso temos todos os nossos factories criados.
 
+# controlers
+vamos criar na pasta de controlers um controler da parte de perfil do usuario, vai ser chamado profile.ts
+e vamos exportar uma função asincrona com o fastyfy request e reply e retonrando um status 200. o esqueleto fica assim, agora falta fazer o miolo.
+
+import { FastifyReply, FastifyRequest } from 'fastify'
+
+
+export async function profile(request: FastifyRequest, reply: FastifyReply) {
+ 
+
+  return reply.status(200).send()
+}
+agora vamos nas rotas e vamos dar m app.get('/me') a rota vai ser por exemplo me. essa é uma rota que o usuario so pode chamar se estiver autenticado. essa rota me vai chamar o controler profile com cuidado para importar de controllers.
+a pagina de rotas fica assim:
+import { FastifyInstance } from 'fastify'
+import { register } from './controller/register'
+import { autenticate } from './controller/autentificate'
+import { profile } from './controller/profile'
+
+export async function appRoutes(app: FastifyInstance) {
+  app.post('/users', register)
+
+  app.post('/sessions', autenticate)
+
+  /* autenticado */
+  app.get('/me', profile)
+}
+
+pore por eqnaunto como não tem nada no miolo de nosso controler profile ela não vai fazer nada. 
+antes temos que falar sobre estrategias de autenticação na aplicação
+existem tres estrategias basicas de autenticaçõ.
+* o basic auth como o nome ja diz autenticação basica.
+nessa em cada requisição o usuario precisa enviar as credenciais dele o cabeçalho (metadados) da requisição. essas credenciais vao dizer se ele esta autorizado ou não. existe um header que chama authorization e quando a gente passa para esse cabecalho o tipo baic a gente precisa enviar as credencias como usuario e senha porem converter isso em um formato de base 64 é um algoritmo ue permite a gente de fazer o encoding e o decoding de alguns dados.
+o problema é que não é muito seguro a gente passar o email e senha do usuario sempre.
+o json web token (jwt)
+somente na rota de login o usuario envia o email e senha que são validados pelo backend e depois disso o nosso backend gera um token unico e ele não pode ser modificado a gente chama ele de stateless token. 
+statless significa que ele não é armazenado em nenhuma estrutura de persistencia de dado (banco de dados)
+o backend quando cria o token usa uma palavra chave que pode ter farios formatos, o mais simples é uma string. a gente vai configurar essa palavra chave no nosso backend.quanto mais dificil for mais dificil vai ser uma outra pessoa conseguir criar um token com a nossa mesma palavra chave.
+a gente vai criar um token a partir dessa palavra chave mas nos odemos tambem descriptograffar esse token depois. o token é um composto entre teres coisas c  abeçalho payload e assinatura. eles são separados por . pontos.
+o ackend é o unico sistema que tem acesso a palavra chave então so ele pode criar novos tokens e validar atravez da assinatura que um token condiz com essa palavra chave.
+as partes de um jwt
+header - 
+  qual algoritmo usado para criar esse token. existem varios. por exemplo o hs256 que usa uma string para criar um token existem outros que usam não apenas palavras mas tambem chaves privadas e publicas e coisas assim.
+payload -
+  qualquer informação que a gente quuiser. a gente coloca por exemplo o sub: que vai ser o id do usuario, paraa gente saber quem criou e nas outras as gente colocar o que a gente quiser como.
+assinatura -
+assinatura impede de um usuario modificar nosso token, e é ela que o backend vai validar. tuo que a gente mudar no payload vai mudar a assinatura. então quando chegar uma requisição ele vai ver que a assinatura não foi o beckend que gerou quando ele comparar com a nossa palavra chave.
+a assinatura é feita com o base64 do header + o base64 do payload + a nossa palavra chave, e ai ela gera a assinatura, então ela sempre muda caso o resto seja modificado.
+então o fluxo da aplicação vai ser o usuario faz login e isso gera um jwt => agora o jwt é utilzado em todas as requisições sendo enviado no header ( authorization Bearer)
+vamos implementar esse modelo de autenticação
+# autenticação com fastify
+jwt é usado 90%DOS CASOS DE USO PARA rotas http; QUANDO TEMOS OUTROS TIPOS como por exemplo integrar aplicação diferentes, ai a gente usaria outros metodo de autenticação como api token boal e outros.
+como ela vai se relacionar apenas a http ela a autenticação vai estar toda na parte na camada http de nossas aplicação. ou seja se for impedir a gente impede nessa camada e não no caso de uso. o caso de uso esta desconexo do mundo externo. assim se um dia a gente usar ele em outro contexto o caso de uso ainda é valido.
+comoe stamos usando o fatify vamos usar o modulo fastify jwt que vai servir para tratar os jason web token
+vamos instalar ele 
+npm i @fastify/jwt
+para configurar ele a gente vai abrir o arquivo app.ts
+e antes das rotas a gente vai passar o app.register(fastifyjwt) e vamos passar o jwt que vem de fastify em segundo parametro a gente pode passar um objeto com as configurações. uma delas é o secret. o ideal é essa palavrachave não estar disponivel nem pra quem é dev então a gente coloca ema em uma variavel ambiente. no desenvolvimento a gente não precisa necessariamente fazer uma chave complexa.
+ai a gente salva ela la e depois vamos no nosso env.index e configuramos a nossa jwt secret
+import 'dotenv/config'
+import { z } from 'zod'
+
+const envSchema = z.object({
+  NODE_ENV: z.enum(['dev', 'production', 'test']).default('dev'),
+  JWT_SECRET: z.string(),
+  PORT: z.coerce.number().default(3333),
+})
+
+const _env = envSchema.safeParse(process.env)
+
+if (_env.success === false) {
+  console.error('invalid env vabriables', _env.error.format())
+  throw new Error('invalid env vabriables')
+}
+
+export const env = _env.data
+agora voltamos no app e podemos passar ela no secret do nosso objeto de configuração.
+app.register(fastifyJwt, {
+  secret: env.JWT_SECRET
+})
+
+atualizamos o nosso env example
+o nosso app ficou assim:
+import fastify from 'fastify'
+import { appRoutes } from './http/routes'
+import { ZodError } from 'zod'
+import { env } from './env'
+import fastifyJwt from '@fastify/jwt'
+
+export const app = fastify()
+app.register(fastifyJwt, {
+  secret: env.JWT_SECRET,
+})
+app.register(appRoutes)
+
+app.setErrorHandler((error, _, reply) => {
+  if (error instanceof ZodError) {
+    return reply
+      .status(400)
+      .send({ message: 'Validation error', issues: error.format() })
+  }
+  if (env.NODE_ENV !== 'production') {
+    console.error(error)
+  } else {
+    // TODO here we should log to a external tool like newrelic, datadog, sentry
+  }
+  return reply.status(500).send({ message: 'Internal server error' })
+})
+
+e agora a gente tem metodos de autenticação que ficam disponiveis em nossas rotas.
+agora nos podemos ir la em http/controllers/autentificate
+ processo de autenticação retorna somente um 200 e mais nada. e nos queremos agora gerar o token.o nosso caso de uso de autenticate retorna um usuario que fez a autenticação.
+     const { user } = await autenticateUseCase.execute({
+      email,
+      password,
+    })
+    e embaixo vamos gerar o token.
+    usando uma const token = await reply.jwtsign()
+    ou seja agora dentro do reply apos a gente ter cadastrado a secretKey a gente tem o acesso a assinatura
+    o primeiro parametro que vamos passar ao jwtsing é o payload ele vem como um objeto e são informações adicionais a gente não vai colocar nada nele. o id a gente vai colocar no segundo parametro dentro da opção sign e dentro do sub.
+    ### importante JAMAIS COLOCAR EMAIL SENHA OU INFORMA9ÃO SIGILOSA DO USUARIO NO JWT
+    porque o payload não é criptografado, ele so é encoded. e da prar descodificar muito facil. o token fica assim
+     const token = await reply.jwtSign(
+      {},
+      {
+        sign: {
+          sub: user.id,
+        },
+      },
+    )
+    e agora a ente pode devolver esse token apos a requisição de autentificar. a gente vai colocar esse reply antes de pegar o erro. a pagina fica assim:
+    import { InvalidCredentialsError } from '@/use-cases/errors/invalid-credentials-error'
+import { makeAutenticateUseCase } from '@/use-cases/factory/make-autenticate-use-case'
+import { FastifyReply, FastifyRequest } from 'fastify'
+import { z } from 'zod'
+
+export async function autenticate(
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
+  const autenticateBodySchema = z.object({
+    email: z.string().email(),
+    password: z.string().min(7),
+  })
+
+  const { email, password } = autenticateBodySchema.parse(request.body)
+
+  try {
+    const autenticateUseCase = makeAutenticateUseCase()
+    const { user } = await autenticateUseCase.execute({
+      email,
+      password,
+    })
+    const token = await reply.jwtSign(
+      {},
+      {
+        sign: {
+          sub: user.id,
+        },
+      },
+    )
+    return reply.status(200).send({ token })
+  } catch (err) {
+    if (err instanceof InvalidCredentialsError) {
+      return reply.status(400).send({ message: err.message })
+    }
+    return reply.status(500).send() // TODO fixthis
+  }
+}
+
+com isso ao fazer a requisição de autentificar e mandar a senha e o email a gente vai receber um token de volta.
+agora que a gente ja ta pegano o token a gente precisa criar a rota profile. primeiro vamos no insomnia e criamos essa rota profile com o get localhost/me 
+ai se a gente mandar sem body ele devolve ok mas não faz nada porque a rota ta varia ainda. é a nossa rota profile.
+agora a gente pode pegar la ao fazer a autenticatio e rodar a rota a gente pode pegar o valor do token e na rota profile a gente pode passar ele no insmomina sando o auth berrerToken e passando ele. a gente poderia passar tambem usando o header e configurando um berrer token mas o insomnia ja da a opção de aitenticantion para nos ajudar.
+agora precisamos pegar esse token e verificar em nossa rota.
+então a gente vai no corpo da rota profile fazer um await e usar uma função chamada request.jwtverify essa função vai buscar o token dentro do cabeçalhos e se ele existir ela vai validar se ele foi gerado na nossa aplicação. se não existir ja vai dar erro e nenhum codigo dai pra frente vai executar.
+agora para buscar as informações do usuario. se a gente der um request.user nos temos osdados que estavam dentro do token. no nosso caso o userId.com request.user.sub a gente tem exatamente o id do usuario.
+a nossa pagina profile fica assim:
+import { FastifyReply, FastifyRequest } from 'fastify'
+
+export async function profile(request: FastifyRequest, reply: FastifyReply) {
+  await request.jwtVerify()
+  console.log(request.user.sub)
+  return reply.status(200).send()
+}
+
+ao fazer todo o processo com o banco de dados e o server rodando eu tive o d do usuario n o consolelog dessa forma
+HTTP server running
+prisma:query SELECT "public"."users"."id", "public"."users"."name", "public"."users"."email", "public"."users"."password_hash", "public"."users"."created_at" FROM "public"."users" WHERE ("public"."users"."email" = $1 AND 1=1) LIMIT $2 OFFSET $3
+prisma:query SELECT 1
+prisma:query SELECT "public"."users"."id", "public"."users"."name", "public"."users"."email", "public"."users"."password_hash", "public"."users"."created_at" FROM "public"."users" WHERE ("public"."users"."email" = $1 AND 1=1) LIMIT $2 OFFSET $3
+922745d4-9e2d-49c7-aaf3-86a5b923c853
+
+nosso database tambem esta mostrando os query por isso que ta meio sujo mas o id do usuario é esse que começa com 9. ou seja agora podemos ter acesso ao id. e ta tudo verificado a gente pode rodar outros codigos dentro que ele so vai todar se tiver passado a auatentificação.
+porem o nosso sub esta sublinhado dentro da profile porque o fastify jwt pede que a gente ao colocar informação dentro do usuario que a gente indique isso para o fastify para ele saber que isso existe. entao vamos criar uma pasta chamada@types
+dentro do src
+e dentro dela vamos fazer um fastifyJwt.d.ts para que ele so tena **ha types por isso o .d
+dentro desse arquivo a gente copia a documentação do fastify. eu vou coloar a documentação de tpy dele aqui.
+import '@fastify/jwt'
+
+declare module '@fastify/jwt' {
+  interface FastifyJWT {
+    payload: { id: number }
+    user: {
+      id: number
+      name: string
+      age: number
+    }
+  }
+}
+
+agora nos vamos modificar isso.
+o payload como a gente não usa vamos tirar.
+dentro do user a gente vai colocar somente o sub e ele vai ser string e caso a interface esteja dando erro a gente pode jogar um export na frente dela. fica assim:
+import '@fastify/jwt'
+
+declare module '@fastify/jwt' {
+  export interface FastifyJWT {
+    user: {
+      sub: string
+    }
+  }
+}
+(a minha ,éao tava dando erro mas botei o export mesmo assi.)
+com isso o sub ja parou de dar erro porque ele ja entende que é uma propriedade do usuario e agora a gente terminoun a autentificaçõ.
 
 
 
