@@ -4528,7 +4528,74 @@ declare module '@fastify/jwt' {
   }
 }
 (a minha ,éao tava dando erro mas botei o export mesmo assi.)
-com isso o sub ja parou de dar erro porque ele ja entende que é uma propriedade do usuario e agora a gente terminoun a autentificaçõ.
+com isso o sub ja parou de dar erro porque ele ja entende que é uma propriedade do usuario e agora a gente terminoun a autentificaçõ. 
+
+# controler de perfil
+vamos l no nosso controler profile.ts
+para pegar o nosso perfil nos vamos fazer uma cont ser para poder usar o factory getuserProfile
+  const getUserProfile = makeGetUserProfileUseCase()
+
+  e agora vamos fazer uma const profile que vai usar isso
+  e vai dar o execute passando o userid que vem do requestusersub para o userid que eles pedem no factory. fica assim essa conts
+    const profile = await getUserProfile.execute({
+    userId: request.user.sub,
+  })
+  a gente pode trocar o profile do cost por uma desestruturação para o {user} que são todos os dados do usuario. ea gente pode devolver isso em nossa rota. no send
+  porem não é legal a gente mandar o passwordhash nele a gente pode colocar no send o {user : {...user,(isso copia todos os dados de user) password_hash: undefined}} ou seja a gente ocultou o passwordhash passando ele como undefined a pagina fica assim:
+  import { makeGetUserProfileUseCase } from '@/use-cases/factory/make-get-user-profile'
+import { FastifyReply, FastifyRequest } from 'fastify'
+
+export async function profile(request: FastifyRequest, reply: FastifyReply) {
+  await request.jwtVerify()
+
+  const getUserProfile = makeGetUserProfileUseCase()
+  const { user } = await getUserProfile.execute({
+    userId: request.user.sub,
+  })
+
+  return reply.status(200).send({ user: { ...user, password_hash: undefined } })
+}
+isso é um ajuste. mas  no futuro
+o poderemos ver jeitos melhores de fazer isso.
+
+agora que pegamos os dadosz mais rotas em nossa aplicte noo que vao precisar que o usuario esteja logado.
+a gente pode chamar a await request.jwtVerify() em todas as rotas ou podemos automatizar isso. para automatizar vamos na pasta http e vamos criar uma pasta chamada middleware e dentro dele um arquivo chamado verify-jwt.ts
+dentro dele vamos exportar uma função assincrona qjue vai ser como um controller então ela vai receber o request e reply.
+import { FastifyReply, FastifyRequest } from 'fastify'
+
+export async function verifyJWT(request: FastifyRequest, reply: FastifyReply) {}
+
+agora dentro dela a gente vai fazer o try para o jwt verify porque se der um erro a gente vai dar o catch e devolver uma resposta de 401 que é não autorizado.
+fica assim:
+import { FastifyReply, FastifyRequest } from 'fastify'
+
+export async function verifyJWT(request: FastifyRequest, reply: FastifyReply) {
+  try {
+    await request.jwtVerify()
+  } catch (err) {
+    return reply.status(401).send({ message: 'Unauthorized' })
+  }
+}
+o que muda é que agora la na nossa profile.ts a gente não precisa mais ter o verify. o profile ts fica assim:
+import { makeGetUserProfileUseCase } from '@/use-cases/factory/make-get-user-profile'
+import { FastifyReply, FastifyRequest } from 'fastify'
+
+export async function profile(request: FastifyRequest, reply: FastifyReply) {
+  const getUserProfile = makeGetUserProfileUseCase()
+  const { user } = await getUserProfile.execute({
+    userId: request.user.sub,
+  })
+
+  return reply.status(200).send({ user: { ...user, password_hash: undefined } })
+}
+
+porem nas nossas rotas que precisarem de autorização a gente vai colocar um argumento entre a rota e o controler e nele vamos passar um objeto de configuração. e para esse objeto de configuração a gente pega o onRequest e passamos o nosso middleware de verificaçao.
+assim:
+  app.get('/me', { onRequest: [verifyJWT] }, profile)
+  não sei porque a gente passa ele dentro de array e não de objeto.
+  aqui o que acontece é que esse onrequest passa antes do nosso controler e ele passa o nosso request pelo verify e se não for autentificado ele ja retorna o erro e nem roda o controler.
+
+
 
 
 
