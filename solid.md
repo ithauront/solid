@@ -4595,6 +4595,236 @@ assim:
   não sei porque a gente passa ele dentro de array e não de objeto.
   aqui o que acontece é que esse onrequest passa antes do nosso controler e ele passa o nosso request pelo verify e se não for autentificado ele ja retorna o erro e nem roda o controler.
 
+  # test environment
+  teste end to end precisa bater no banco de dados. ele precisa testar a aplicação assim como um usuario utilizaria ela.
+  então não podemos usar o banco separado para testes e um para desenvolvimento. podemos melhor ainda separar o banco de dados por suite de testes.
+  a gente pode fazer com que os testes executem em um ambiente totalmente isolado. ele tem que ter minima interferencia com outros testes que executaram antes dele. resolvemnos isso nos unitarios com o inmemory repository e antes de cada teste a gente zera eles e ai o teste roda limpo.
+  em end to end é mais complicado porque como temos banco de dados reais é mais pesado limpar sempre o banco de dados.
+  então sera que da pra abrir mão de um pouco essa interferencia para ter mais performace na nossa aplicação.
+  suite de test suite de teste é um arquivo com varios teste.
+  a gente pode ter um ambiente limpo para cada suite ou seja a gente tem varios testes que rodam no mesmo contexto, dessa forma não precisa sujar tanto o banco de dados nem perder muitooo tempo mimpando tudo a zero sempre.
+  o prisma usa a env.database_url para definir qual vai ser a database que vai ser usada. nos precisamos então que em cada suite de testes a gente mude essa url.
+  existem varias formas de fazer isso. 
+  aqui nos vamos usar o conceito de test environment que é uma configuração de ambiente para alguns tipos de testes possiveis.
+  podemos no caso usando a testenviromnet mudar uma variavel ambuente.nos podemos tambem fazer muitas coisas nesse enviromnemt como executar script, migrations, etc.
+  o problema é que atualmente a gente não pode ainda com o vitest configurar as enviromnet no nosso desenvolvimento . a gente so pode fazer isso configurando um pacote npm que tem como nome vitest-environment. tem varios no google que ja fiweram esses pacotes mas a gente queria criar o nosso. porem ainda assim a gente consegue burlar isso um pouco. dentro do prisma vamos fazer uma pasta.
+  vitest-environment-prisma 
+  o nome presica ser esse.
+  vamos no terminal e vamos dar um cd para essa pasta e dar um npm init -y
+  assim estamos criando um pacote json dentro dela.
+  ai vamon no package json qjue isos criou e apagamos o script e mudamos o main para o nome prisma-test-environment
+  e criamos esse arquivo tambem dentro dessa pasta
+  prisma-test-environment.ts
+  o package fica assim
+  {
+  "name": "vitest-environment-prisma",
+  "version": "1.0.0",
+  "description": "",
+  "main": "prisma-test-environment.ts",
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
+
+e agora no nosso arquivo prismatestenvironment a gente para testar vai importar de dentro do vitest o Environment e vamos dar um export default nele. e para que ele fique tipado e a gente possa ter o autocomplete dele a gente vai colocar um <environment >
+a pagina fica assim
+
+import { Environment } from 'vitest'
+
+export default <Environment>()
+
+agora temos que colocar as coisas que vao dentro desse environment o primeiro é o nome a gente pode colocar o que quiser.
+e depois dele vamos colocar a unica função que o nevironment precisa que é a função chamada setup. essa função vai ser o que vai ser executado antes de cada suite de testes e nela a gente pode colocar o que quiser. 
+depois a gente tem que retornar pelo menos um objeto com o metodo teardown e a gente pode deixar esse teardown vazio. fica assim 
+import { Environment } from 'vitest'
+
+export default <Environment>{
+  name: 'prisma',
+  async setup() {
+    console.log('rodando')
+
+    return {
+      teardown() {
+        console.log('parou de executar')
+      },
+    }
+  },
+}
+
+porem para funcionar eu precisei instalar a versão mais antiga do vitest com esse comando:
+ npm i vitest@0.33.0 -D
+
+ agora vamos fazer o test do register.
+ CRiamos no controler o register.spec.ts
+ nele a gente importa o test do vitest e vamos so fazer um test para ver se o ambiente que a gente criou esta fucnionando.
+ então vamos fazer algo bem simples: para o test ok a gente deixa em branco
+ import { test } from 'vitest'
+
+test('ok', async () => {})
+
+o quea gente vai fazer agora:
+queremos que sempre que um teste da pasta http for executado a gente quer que ele use o ambiente que a gente criou chamado vitest-environment-prisma
+para isso nos vamos la nas configs do vite vite.config.ts
+e la esta assim:
+import { defineConfig } from 'vitest/config'
+import tsconfigpaths from 'vite-tsconfig-paths'
+export default defineConfig({
+  plugins: [tsconfigpaths()],
+})
+
+a gente pode depois do plugins adicionar o test: e passar para ele um objeto nesse objeto a gente chama environmentsmacthglobe e passamos um array e dentro dele mais um array
+  test: {
+    environmentMatchGlobs: [
+      []
+    ]
+  }
+  dentro desse array o primeiro parametro que a gente vai passar é o caminho para os testes. ou seja para os testes que estiverem dentro de src dentro de http, dentro de controllers e ai dentro de qualquer outra pasta simbolizado po ** a gente vai fazer algo. então o caminho é esse
+   'src/http/controllers/**'
+   damos uma virgula e passamos entre aspas o ambiente que a gente ta criando chamado prisma. esse prisma precisa ser o nome que vem exatamente depois do vitest-environment- da pasta que a gente criou. então se o nome da pasta fosse vitest-environment-teste a gente escreveria teste ai
+   fica assim:
+
+   import { defineConfig } from 'vitest/config'
+import tsconfigpaths from 'vite-tsconfig-paths'
+export default defineConfig({
+  plugins: [tsconfigpaths()],
+  test: {
+    environmentMatchGlobs: [['src/http/controllers/**', 'prisma']],
+  },
+})
+
+porem se a gente tentar rodar isso não vai funcionar porque ele vai procurar no nosso packagejson principal um packote com esse nome e não vai achar.
+então agora vem o armengue.
+entéao temos que no terminal ir para a pasta que tem o arquivo packagejson que a gente fez ou seja para a pasta vitest-environment prisma
+essa pasta precisa ter um arquvio chamado packagejson e esse arquivo precisa ter o nome vitest-environment-prisma (se não não vai funcionar)
+e la a gente da o comando npm link e esse link vai criar um link entre o pacote pricnipal e o nosso que a gente criou
+agora a gente tem que votltar na raiz do projeto para instalar esese link a gente vai na raiz do projeto e da esse comando:
+npm link vitest-environment-prisma
+com isso ele instala
+o teardown tambem precisa ser async.
+vamos logo fazer tambem o arquivo autentificate.spec.ts e colocar nele o mesmo codigo do teste do register
+import { test } from 'vitest'
+
+test('ok', () => {})
+
+com isso se a gente rodar o npm run test ele ja acha o  ✓ src/http/controller/register.spec.ts (1)
+teste do controller.
+agora so falta a gente implementar as logicas dos testes end2end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
