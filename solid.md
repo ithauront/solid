@@ -4701,14 +4701,90 @@ agora a gente tem que votltar na raiz do projeto para instalar esese link a gent
 npm link vitest-environment-prisma
 com isso ele instala
 o teardown tambem precisa ser async.
-vamos logo fazer tambem o arquivo autentificate.spec.ts e colocar nele o mesmo codigo do teste do register
-import { test } from 'vitest'
-
-test('ok', () => {})
+vamos logo fazer tambem o arquivo autentificate.spec.ts e colocar nele o mesmo codigo do teste do register{})
 
 com isso se a gente rodar o npm run test ele ja acha o  ✓ src/http/controller/register.spec.ts (1)
 teste do controller.
 agora so falta a gente implementar as logicas dos testes end2end
+
+# organizeação de scripts
+antes de fazer os testes vamos oorganizar um poucos nosso scripts de testes, para termos um script pata cada tipo de teste en não ficar rodando otodos os testes quando a gente quiser rodar so os unitarios, nem so os E2E.
+vamos no package.json
+vamos fazer um srcip para teste end to end que vai ser o vitest run mas passando uma flag de diretorio e mandando ele ir la na http que esta dentro do src e rodar os arquivos so desta pasta fica assim esse script:
+ "test:e2e": "vitest run --dir src/http",
+ vamos agora fazer yamoscrip o mesmo esquema masos testes unitarios/ vamos er o mesmo esquema mas ao inves de passar a pasta http vamos passar a pasta iuse-cases fica asism o script
+ "test:unit": "vitest run --dir src/use-cases",
+ e vamos apagar o test puro pu então usar o script test para rodar apenas o test useCase. para ficar igual o da aula a gente vai chamar o dos test unitarios apenas de tes e assim não vamos ter um test:unit mas o srcipt que a gente passou pro test unit vai ser usado no test e no test watch.
+ a paste de coverage como a gente não usa muito a gente vai deixar como ta assim como o ui. se a gente usasse munito a gente não poderia fazer um especifico para coverage de unitario e etc.
+
+ # npm link
+ é importante saber que o npm link so vai fucnioncionar na nossa maquina se a gente passasse para o github para ele executar automaticamente a gente teria que ir la executar manualmente o processo dos link e tudo mais.
+ para evitar esses problemas vamos achar essa solução.
+ como vamos usar test end2nd mais raramente a gente vai fazer um comando camado pretest:end2end e esse comando vai poder realizar esses processos de likar para nos.
+ é importante saber que o npm executa sempre todo o script que tem o pre ou o post antes ou depois do caomando que tem essa keyword entãpo nos temos que escrever o comando exatameten igual como esta o nosso teste end to end som que com o pre antes. se o nosso test end 2 end esta la no script assim: "test:e2e" a gente tem que escrever o pre assim pretest:e2e e nao algo como pretest:End2end ou preTest:e2e. entao como a gete vai vaer um pretest:e2e ele vai rodar isso sempre que a gente der o comando test:e2e e vai rodar antes do comando do test:e2e.
+ a gente poderia entao no pretest fazer um cd prisma/vitest-environment-prisma && npm link assim ele iria ate a pasta desejada e rodaria o npm link.
+ mas isso so roda em unix e em mac não vai rodar em windowns. para contornar esse problema a gente vai instalar um pacote como dependencia chamado npm run all
+ npm install -D npm-run-all
+ com isso vai rodar em qualquer sistema
+ e agora para executar ele a gente vai la no script e vai mudar a forma . vamos dar o run-s na primeira coisa do scfript que ai ele vai executar o run all para a gente e logo apos o run-s temos tambem a opção do runp que vai rodar paralemaente mas a gente não quer iso a gente quer que primeiro rode o cd e depois o npm link
+ mas para isso rodar a gente vai criar dois scripts anteriores que para rodar eles que vai ser
+ test:create-prisma-environment e ele vai dar o npm link e passar o caminho da pasta (para o npm link funciona da mesma forma que dar o cd para a pasta e rodar o npm link) fica assim:
+  "test:create-prisma-environment": "npm link ./prisma/vitest-environment-prisma" ,
+ e outro chamado test:install-prisma-environment esse é o de instalar que vai ser o npm link e o nome do pacote que a gente criou que vai ser vitest-enrironment-prisma
+ em outras palavras ul cira o pacote na maquina e o segundo instala ele.
+ agora nos vamos la no pretest:e2e e damos o run-s a gente coloca o nome dos dois comandos e ai fica assim:
+     "pretest:e2e": "run-s test:create-prisma-environment test:install-prisma-environment"
+     o arquivo package json fica assim:
+     {
+  "name": "proj3",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsup src --out-dir build",
+    "start": "node build/server.js",
+    "test:create-prisma-environment": "npm link ./prisma/vitest-environment-prisma" ,
+    "test:install-prisma-environment": "npm link vitest-environment-prisma" ,
+    "test": "vitest run --dir src/use-cases",
+    "pretest:e2e": "run-s test:create-prisma-environment test:install-prisma-environment",
+    "test:e2e": "vitest run --dir src/http",
+    "test:watch": "vitest --dir src/use-cases",
+    "test:coverage": "vitest run --coverage",
+    "test:ui": "vitest --ui"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@rocketseat/eslint-config": "2.1.0",
+    "@types/bcryptjs": "2.4.4",
+    "@types/node": "18.16.1",
+    "@vitest/coverage-v8": "0.34.6",
+    "@vitest/ui": "0.34.6",
+    "eslint": "8.50.0",
+    "npm-run-all": "4.1.5",
+    "prisma": "5.3.1",
+    "tsup": "7.2.0",
+    "tsx": "3.12.10",
+    "typescript": "5.2.2",
+    "vite-tsconfig-paths": "4.2.1",
+    "vitest": "0.33.0"
+  },
+  "dependencies": {
+    "@fastify/jwt": "7.2.2",
+    "@prisma/client": "5.3.1",
+    "bcryptjs": "2.4.3",
+    "dayjs": "1.11.10",
+    "dotenv": "16.3.1",
+    "fastify": "4.23.2",
+    "zod": "3.22.2"
+  }
+}
+
+agora quando a gente rodar o test:e2e ele tem que rodar todo o processo de fazer os links e depois rodar os testes.
+ele realmente faz isso. demora um pouco mais mas garante que o teste não vai ter problema por estar desconexo;.
+
 
 
 
