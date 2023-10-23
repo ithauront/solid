@@ -4688,7 +4688,7 @@ import tsconfigpaths from 'vite-tsconfig-paths'
 export default defineConfig({
   plugins: [tsconfigpaths()],
   test: {
-    environmentMatchGlobs: [['src/http/controllers/**', 'prisma']],
+    environmentMatchGlobs: [['src/http/controller/**', 'prisma']],
   },
 })
 
@@ -4784,6 +4784,176 @@ vamos fazer um srcip para teste end to end que vai ser o vitest run mas passando
 
 agora quando a gente rodar o test:e2e ele tem que rodar todo o processo de fazer os links e depois rodar os testes.
 ele realmente faz isso. demora um pouco mais mas garante que o teste não vai ter problema por estar desconexo;.
+# environment config
+vamos agora la no nosso environment porque por enquanto ele so ta dando um console.log e um teradown e nos vamos configurar ele para dar um banco de dados isolado para cada suit de testes.
+o que a gente quer fazer é mudar a variavel de b a database_url para vcada suite de testes.
+o postgress perùite que a gente alem de ter o nosso banco de dados dentro dele existe uma outra separação que saéao o s schemas que é basicamente uma forma de a gente separar o banco de dados em varios banco de dados menor. o padrão que a gente usa é o public que é o nosso banco de dados padrão. mas a gente pode fazer outros schemas que vao ser isolados e eles não vao compartilhar dados com outros schemas. vamos usar o ramdumuuid para dar o nome ao schema dentro da função setup assim:
+ const schema = randomUUID()
+ e o que a gente quer fazer agora é pegar a nossa url da variavel database_url que é assim DATABASE_URL="postgresql://docker:docker@localhost:5432/apisolid?schema=public"
+ e mudar o public do schema final.
+ para fazer isso vamos fazer uma função chamada generatedatabaseurl e ela vai receber o nome do schema e ai a gente vai fazer um if para se dentro do process.env.database não houver a databaseurl a gente ja pode dar um erro porque ele precisa disso para funcionar.
+ function generateDatabaseUrl(schema: string) {
+  if (!process.env.DATABASE_URL) {
+    throw new Error('Please provide an DATABASE_URL environment variable')
+  }
+  se existir a gante vai criar uma instancia da classe URL que é global no node então a gente pode declarar ela sem criar e vamos passar para ela o proces env database url assim:
+  const url = new URL(process.env.DATABASE_URL)
+  agora nos temos acesso usando o url. a cada parte do url separada como host, port, protcol e etc.
+  o schema=public q gente chama de serach params ou query params
+  e ai nesse caso é searchparams e aio a gente vai dar um .set para substituir uma coisa por outra e a gente vai colocar a variavel shema e substituir ela pelo schema que a gente recebe nos parametros.
+    url.searchParams.set('schema', schema) no final a gente retorna esa url e da um tostring para ele devolver ela como string ai ele vai devolver uma nova url.
+    se agora dentro da nossa export default Environmnet a gente der um console.log e passar essa função generateDatabaseUrl e passar para ela o schema que a gente gerou com o ramdom uuid. a gente deve ver a nova url com um valor ramdomico no schema.
+    fica assim a pagina para test com esse console.log
+    import { randomUUID } from 'node:crypto'
+import { Environment } from 'vitest'
+
+function generateDatabaseUrl(schema: string) {
+  if (!process.env.DATABASE_URL) {
+    throw new Error('Please provide an DATABASE_URL environment variable')
+  }
+
+  const url = new URL(process.env.DATABASE_URL)
+
+  url.searchParams.set('schema', schema)
+
+  return url.toString()
+}
+
+export default <Environment>{
+  name: 'prisma',
+  async setup() {
+    const schema = randomUUID()
+
+    console.log(generateDatabaseUrl(schema))
+
+    return {
+      async teardown() {
+        console.log('parou de executar')
+      },
+    }
+  },
+}
+
+
+agora se a gente rodar o test:e2e a gente deve ver a url la.
+eu acho que esta tendo problema para ele rodar isso ntes dos testes. então eu vou terminar a aula e depois voltar para resolver esse problema achei  erro
+# o erro era
+no vitest.cofig o endereço do controller esta errado
+import { defineConfig } from 'vitest/config'
+import tsconfigpaths from 'vite-tsconfig-paths'
+export default defineConfig({
+  plugins: [tsconfigpaths()],
+  test: {
+    environmentMatchGlobs: [['src/http/controller/**', 'prisma']],
+  },
+})
+ o correto é controller e não constrollers como tava antes. eu vou aproveitar e voltar aqui nas anotações e substituir onde eu tinha colocado a pagina inicialmente.
+antes de tudo temos que tambem importar o dot.env nessa pagina
+import 'dotenv/config'
+import { randomUUID } from 'node:crypto'
+import { Environment } from 'vitest'
+
+agora nos temos uma database com o schema diferente para cada teste.
+vamos tirar esse console.log que era so um teste para ver se estava tendo acesso e agora no lugar dele vamos.
+vamos pegar a process.env.DATABASE_URL e sobescrever com a nossa nova que a gente setou; assim:
+ async setup() {
+    const schema = randomUUID()
+
+    const databaseURL = generateDatabaseUrl(schema)
+
+    process.env.DATABASE_URL = databaseURL
+
+  agora vamos usar isso para fazer as nossas migrations. assim nesse novo schema a fgente vai ter as tabeas de nossa aplicação.
+  para fazer isso a partir do typescript a gente vai importar de dentro do node:childprocess uma função chamada execSync ess fu,ção a gente chama e tudo que a gente passar para ela vai ser como um comando executando no terminal. ai nela a gente vai passar npx prisma migrate deploy
+  não vamos executar o migrate deve e sim o deploy porque nesse momento eu não quero que o prisma faça o processo de comparar o schema local com o banco de dados que existe para ver se houveram alterações e criar nova migrations. a gente so quer que ele abra a pasta migrations e execute elas.
+  a pagina fica assim:
+  import 'dotenv/config'
+import { randomUUID } from 'node:crypto'
+import { execSync } from 'node:child_process'
+import { Environment } from 'vitest'
+
+function generateDatabaseUrl(schema: string) {
+  if (!process.env.DATABASE_URL) {
+    throw new Error('Please provide an DATABASE_URL environment variable')
+  }
+
+  const url = new URL(process.env.DATABASE_URL)
+
+  url.searchParams.set('schema', schema)
+
+  return url.toString()
+}
+
+export default <Environment>{
+  name: 'prisma',
+  async setup() {
+    const schema = randomUUID()
+
+    const databaseURL = generateDatabaseUrl(schema)
+
+    process.env.DATABASE_URL = databaseURL
+
+    execSync('npx prisma migrate deploy')
+
+    return {
+      async teardown() {
+        console.log('parou de executar')
+      },
+    }
+  },
+}
+
+agora nos criarmos um novo 'banco de dados' no nosso banco de dados identico ao nosso banco de dados padrão e ele vai ser usado em nossos testes. cada suit de testes vai ter um/.
+porem ainda precisamos eliminar ele quando a suite de testes terminar.
+então para isso vamos usar o teardown
+vamos antes de tudo fazer uma const prisma antes da função generate e esse prisma vai ser o new PrismaClient() isso vai ser para instanciar e criar uma conexão com o banco de dados.
+agora dentro do teardown
+vamos dar um await nele pegar o prisma
+se a gente der um . apos o prisma a gente tem as funções $executeRaw e executeRawUnsafe o execute raw serve para a gente fazer operações no banco de dados como delete e etc coisas que não são buscas. quando for buscas vamos usar o query Raw. a diferença é que o unsafe permite fazer coisas que podem ser maliciosas como apagar banco de dados. o raw que não é unsafe tambem protege contra sql injection so que nesse caso a gente quer exatamente apagar o banco de dados. então vamos usar o rawUnsafe e passar depos dele parenteses e não literal strings como a gente usou no outro e dentro dele vamos colocar os literal string ai dentro dessas aspas nos vamos mandar um drop schema e vamos adicionar uma checagem por via das dvidas que é q if existes agora por volta do nome do schema tem q ter aspas enéao a gente coloca aspas duplas  e passamos o nosso ${} para colocar o nome do schema que é a const schema q a gente criou e no fim a gente bota CASCADE o cascade faz com que se alguma informação depender desse schema ela vai ser apagada ambem. ou seja tudo que for criada com o schema vai ser apagado junto no caso indice, chave prmaria chave foringer tudo. e por fim depois de fechar o rawunsafe a gente faz um await prisma disconect() para poder fechar o banco de dados depois dos testes.
+fica assim:
+import 'dotenv/config'
+import { randomUUID } from 'node:crypto'
+import { execSync } from 'node:child_process'
+import { Environment } from 'vitest'
+import { PrismaClient } from '@prisma/client'
+
+const prisma = new PrismaClient()
+
+function generateDatabaseUrl(schema: string) {
+  if (!process.env.DATABASE_URL) {
+    throw new Error('Please provide an DATABASE_URL environment variable')
+  }
+
+  const url = new URL(process.env.DATABASE_URL)
+
+  url.searchParams.set('schema', schema)
+
+  return url.toString()
+}
+
+export default <Environment>{
+  name: 'prisma',
+  async setup() {
+    const schema = randomUUID()
+
+    const databaseURL = generateDatabaseUrl(schema)
+
+    process.env.DATABASE_URL = databaseURL
+
+    execSync('npx prisma migrate deploy')
+
+    return {
+      async teardown() {
+        await prisma.$executeRawUnsafe(
+          `DROP SCHEMA IF EXISTS "${schema} CASCADE"`,
+        )
+        await prisma.$disconnect()
+      },
+    }
+  },
+}
+
+agora que ja temos um contexto isolado para cada suite de testes executar a gente pode escrever uos nosso testes end 2 end.
 
 
 
