@@ -4955,6 +4955,62 @@ export default <Environment>{
 
 agora que ja temos um contexto isolado para cada suite de testes executar a gente pode escrever uos nosso testes end 2 end.
 
+# testes e2e
+vamos começar instalando a supertest que é a biblioteca mais utilizada para rodar testes end 2 end sem precisar colocar a aplicação no ar
+npm i supertest -D
+temos que instalar tambem os types separadamente porque não é uma biblioteca desenvolvida com typescript
+npm i @types/supertest -D
+agora vamos la no nosso test de register e imoortamos o app do @/app e o request do supertest
+import {request} from 'supertest'
+import {app} from '@/app'
+
+importamos o describe do vitest e usamos ele descrevendo a suite como register (e2e) e dentro dele vamos fazer um teste se pode registrar
+import { describe, test } from 'vitest'
+import  request  from 'supertest'
+import { app } from '@/app'
+
+describe('register (e2e)', () => {
+  test('if can register', async () => {})
+})
+
+agora dentro desse teste vamos fazer uma cont response = vamos dar um await request(app.server) para fazer a conexão com o server e ai a gente da um .post para postar na rota users e ai a gente da um .send() e as informações para criar um novo usuario
+    const response = await request(app.server).post('/users').send({
+      name: 'Jhon Doe',
+      email: 'jhondoe@example.com',
+      password: 'testpassword',
+    })
+
+    agora a gente pode criar as nossas expectations
+ expect(response.statusCode).toEqual(201) a gente espera o estatuscode ser 201 que é sucesso.
+
+ vamos tambem antes do teste criar um beforeAll e um afterall
+ para garantir que antes dos testes executerm o nosso app do fastify esteja pronto ou seja ready. é um evento que o fastify emite para a gente saber que a aplicação terminou de ser inicializada e no afterall a gente que feche a aplcação.
+ o teste fica assim:
+ import { afterAll, beforeAll, describe, expect, test } from 'vitest'
+import request from 'supertest'
+import { app } from '@/app'
+
+describe('register (e2e)', () => {
+  beforeAll(async () => {
+    await app.ready()
+  })
+  afterAll(async () => {
+    await app.close()
+  })
+  test('if can register', async () => {
+    const response = await request(app.server).post('/users').send({
+      name: 'Jhon Doe',
+      email: 'jhondoe@example.com',
+      password: 'testpassword',
+    })
+
+    expect(response.statusCode).toEqual(201)
+  })
+})
+
+para evitar de ficar fazendo o link todas as vezes a gente pode criar um script para o test:e2e:watch
+"test:e2e:watch": "vitest --dir src/http",
+
 
 
 
