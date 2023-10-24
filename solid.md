@@ -5105,7 +5105,117 @@ describe('profile (e2e)', () => {
 
 ou seja a gente cria o usuuario, faz o login pega o token do login e ai faz a autentificação e ve se ele retorna o codigo certo e o usuario como a gente quer.
 so que daqui para frente todas as rotas de nossa aplicação vao exigir que o usuario esteja logado. então a gente poderia talvez separar isso em uma funç;:éao. mas vamos focar em outros controller por enquanto e depois a gente ortimiza isso.
+
+## outras rotas
+vamos criar agora outras rotas para nosos outros casos de uso.
+vamos dar uma organizada nos controllers
+vamos criar uma pasra chamada users e todos os controlers e seus testes relacionados a users a gene joga la.
+vamos mover tambem o routes para la se ele não arrumar as importações automaticamente a gente arruma.
+agora vamos ter uma nova s nelemada gyms e vamos colocar um outro routes nele, para ter todas as rotas relacionadas a academia dentro dele. em cada um dos routes a gente vai mudar o nome de approutes para usersroutes ou gymroutes
+no gym rotes a gente apaga todas as rotas e as importações dos controllers de users.
+ele fica assim:
+import { FastifyInstance } from 'fastify'
+
+import { verifyJWT } from '../../middleware/verify-jwt'
+
+export async function gymRoutes(app: FastifyInstance) {
  
+}
+
+agora dentro dele vamos pegar o app do fastify vamos dar um .addHook('onRequest', verifyJWT) ou seja a gente adicionou um hook para todos os request passarem pelo verify todas as rotas que estão dentro desse arquivo de rotas vao passar pelo midleware de autentificação. a gente fez diferente do users, porque la tem rotas que não precisa estar autentificado e outras que precisam. ai a gente deu o verify de outra forma/
+mudamos o app para agora usar as userRoutes e as gymroutes e não mais as approutes ele fica assim:
+import fastify from 'fastify'
+import { userRoutes } from './http/controller/user/routes'
+import { ZodError } from 'zod'
+import { env } from './env'
+import fastifyJwt from '@fastify/jwt'
+import { gymRoutes } from './http/controller/gym/routes'
+
+export const app = fastify()
+app.register(fastifyJwt, {
+  secret: env.JWT_SECRET,
+})
+app.register(userRoutes)
+app.register(gymRoutes)
+
+app.setErrorHandler((error, _, reply) => {
+  if (error instanceof ZodError) {
+    return reply
+      .status(400)
+      .send({ message: 'Validation error', issues: error.format() })
+  }
+  if (env.NODE_ENV !== 'production') {
+    console.error(error)
+  } else {
+    // TODO here we should log to a external tool like newrelic, datadog, sentry
+  }
+  return reply.status(500).send({ message: 'Internal server error' })
+})
+
+ainda vamos mostrar como ficaram as rotas gym, calma/;
+vamos criar os controlers do gym. na pasta gym abrimos um novo arquivo com nome create.ts
+vamos copiar o controler de registro de usuarios para ele.
+e vamos mudar o nome para create
+a const de schema vai se chamar creategymbodyschema
+vamos coloca nele o titulo que é uma string uma descrição que é string ou nullable
+o telehone que é uma string e nullable
+oa latitude que é um number e nele podemos fazer uma validação um pouco maior que não é nativa do zod para isso a gente tem que usar o refine o refine traz o valor do campo e a gente faz uma arrow para dizer se ele va ser true ou false a depender dos criterios que a gente vai passar. e ai para fazer uma validação de latitude e longitude é o seguinte
+a latitude sempre precisa ser um valor menor ou igual a noventa, porem pode ser tanto 90 negativo quanto positivo então a gente envolve o value em o Mah.abs esse metodo transforma qualquer numero em positivo.
+a longitude a gente faz igual mas ela pode ser até 180
+fica assim:
+
+const createGymBodySchema = z.object({
+    title: z.string(),
+    description: z.string().nullable(),
+    phone: z.string().nullable(),
+    latitude: z.number().refine((value) => {
+      return Math.abs(value) <= 90
+    }),
+    longitude: z.number().refine((value) => {
+      return Math.abs(value) <= 180
+    }),
+  })
+  agora a gente pode usar esse schema no lugar do registerBodySchema loco na cost abaixo para dar o parse e pegamos dela os campos que a gente acabou de tipificar
+  
+  const { title, description, phone, latitude, longitude } =
+    createGymBodySchema.parse(request.body)
+    e agora a gente vai pegar o nosso caso de uso que é makeCretaGymusecase e dar o nome correto e não register para ele e depois a gente da o await execute nele passando o title phone e etc..
+    como o nosso creategym não tem nenhum tipo de erro especial criado a gente pode retirar esse trycatch. porque como não tem nenhul tipo de erro que a getne criou ele vai cair la no nosso erro global que a gente fez.
+    pronto agora a gente tira as importações que n:éao usamos e o controller do gym create esta pronto. ele fica assim:
+    import { makeCreateGymUseCase } from '@/use-cases/factory/make-create-gym-use-case'
+import { FastifyReply, FastifyRequest } from 'fastify'
+import { z } from 'zod'
+
+export async function create(request: FastifyRequest, reply: FastifyReply) {
+  const createGymBodySchema = z.object({
+    title: z.string(),
+    description: z.string().nullable(),
+    phone: z.string().nullable(),
+    latitude: z.number().refine((value) => {
+      return Math.abs(value) <= 90
+    }),
+    longitude: z.number().refine((value) => {
+      return Math.abs(value) <= 180
+    }),
+  })
+
+  const { title, description, phone, latitude, longitude } =
+    createGymBodySchema.parse(request.body)
+
+  const createGymUseCase = makeCreateGymUseCase()
+  await createGymUseCase.execute({
+    title,
+    description,
+    phone,
+    latitude,
+    longitude,
+  })
+
+  return reply.status(201).send()
+}
+
+
+
 
 
 
