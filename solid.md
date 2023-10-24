@@ -5214,6 +5214,95 @@ export async function create(request: FastifyRequest, reply: FastifyReply) {
   return reply.status(201).send()
 }
 
+vamos agora fazer os dois outros controles de academias o search.ts e o nearby.ts
+copiamos o create no search e mudamos o nome. na tipioficação a gente muda o nome e dentrro dela a gete coloca o query qie é uma string e a page. sabendo que tudo que vem da queryparams vai ser uma string q gente pode dar um coerce para a page se tornar um numero. e depois disso a gente diz que o minimo de page é 1 e que se não tiver nada o default é 1 fica assim:
+export async function search(request: FastifyRequest, reply: FastifyReply) {
+  const searchGymQuerySchema = z.object({
+    query: z.string(),
+    page: z.coerce.number().min(1).default(1),
+  })
+  agora na const abaixo a gente pega o query e o page desse parse e depois a gente muda a instanciação para o search e quando usamos o execute a gente passa a query e page.
+  const { query, page } = searchGymQuerySchema.parse(request.body)
+
+  const searchGymUseCase = makeSearchGymsUseCase()
+ const {gyms} await searchGymUseCase.execute({
+    query,
+    page,
+  })
+  e no fim a gente devolve a lista de academia. a pagina fica assim:
+import { makeSearchGymsUseCase } from '@/use-cases/factory/make-search-gyms'
+import { FastifyReply, FastifyRequest } from 'fastify'
+import { z } from 'zod'
+
+export async function search(request: FastifyRequest, reply: FastifyReply) {
+  const searchGymQuerySchema = z.object({
+    query: z.string(),
+    page: z.coerce.number().min(1).default(1),
+  })
+
+  const { query, page } = searchGymQuerySchema.parse(request.body)
+
+  const searchGymUseCase = makeSearchGymsUseCase()
+  const { gyms } = await searchGymUseCase.execute({
+    query,
+    page,
+  })
+
+  return reply.status(201).send({
+    gyms,
+  })
+}
+
+
+agora para o nearby. a gente precisa da latitude e longitude. entéao a gente copia a validação de latitude e longitude do create o resto vem do search.
+a gente faz as alteraçoes como nas outras vezes chama a latitude e longitude vindo do parse passa eles pro execute e no final devolve as gyms tambem. fica assim:
+import { makeFetchNearbyGymsUseCase } from '@/use-cases/factory/make-fetch-nearby-gym-use-case'
+import { FastifyReply, FastifyRequest } from 'fastify'
+import { z } from 'zod'
+
+export async function nearby(request: FastifyRequest, reply: FastifyReply) {
+  const nearbyGymQuerySchema = z.object({
+    latitude: z.number().refine((value) => {
+      return Math.abs(value) <= 90
+    }),
+    longitude: z.number().refine((value) => {
+      return Math.abs(value) <= 180
+    }),
+  })
+
+  const { latitude, longitude } = nearbyGymQuerySchema.parse(request.body)
+
+  const fetchNearbyGymUseCase = makeFetchNearbyGymsUseCase()
+  const { gyms } = await fetchNearbyGymUseCase.execute({
+    userLatitude: latitude,
+    userLongitude: longitude,
+  })
+
+  return reply.status(201).send({
+    gyms,
+  })
+}
+
+agora vamos criar as rotas para eles.
+vamos la no gym/routes.ts
+la vamos fazer duas rotas get indo para gyms/o nome da rota nearby ou serch e uma rota post que vai so para gyms e vai usar o controler create importamos todos os controlles e a pagina fica assim:
+import { FastifyInstance } from 'fastify'
+
+import { verifyJWT } from '../../middleware/verify-jwt'
+import { search } from './search'
+import { nearby } from './nearby'
+import { create } from './create'
+
+export async function gymRoutes(app: FastifyInstance) {
+  app.addHook('onRequest', verifyJWT)
+
+  app.get('gyms/search', search)
+  app.get('gyms/nearby', nearby)
+
+  app.post('gyms', create)
+}
+
+
 
 
 
