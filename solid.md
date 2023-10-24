@@ -5052,6 +5052,61 @@ describe('autenticate (e2e)', () => {
 
 
 é importante entender que a gente não cria teste end2end para cada regra de negocio da aplicação, eles são mais abertose globais e e vão meio que testar as rotas. a gente não vai fazer um test end2end pra ver se caso o usuario mandar uma senha errada se ele não deixa autentificar. isso a gente faz nos testes unitarios. a gente testa no e12e as rotas de sucesso da aplicação. como cada teste e2e é pesado a gente não faz testes deles para testar coisas que ja são testadas nos unitarios. então a gente faz so esse teste para testar o fluxo de autentificação.
+vamos  agora fazer um teste para o perfil então vamos abrir um arquivo
+profile.spec.ts e nele vamos copiar o testo do autenticate.
+
+mudamos o nome
+agora temos que saber que para acessar o perfil de um usuario a gente precisa logar e para logar a gente precisa criar a cota. enão vamos fazer de uma forma mais simples e depois vamos otimizar.
+primeiro vamos deixar com a criação e o login com as chamadas await
+chamamos o longin de authResponse e pegamos de dentro do authresponse.body o token
+agora podemos fazer uma requisição chamada de profileResponse para a rota me manda o metodo get para a rota me  e passar no header  o token para mandar o header a gente usa o .set ai a gente passa o Authorizatiion en string para o metodo set depois em segundo argumento o em string literal o bearer com o token em ileatarçéo e depois damos um send para enviar essa requisiçéao. o set tem que ser esatamente assim para que ele entenda que é um jwt.
+ const profileResponse = await request(app.server)
+      .get('/me')
+      .set('Authorization', `Bearer ${token}`)
+      .send()
+
+agora a gente espera que do profile response a gente tenha um statuscode 200 e tambem esperamos que no body tenha um objeto e ele seja igual a um objeto contedo email
+fica assim:
+import { afterAll, beforeAll, describe, expect, test } from 'vitest'
+import request from 'supertest'
+import { app } from '@/app'
+
+describe('profile (e2e)', () => {
+  beforeAll(async () => {
+    await app.ready()
+  })
+  afterAll(async () => {
+    await app.close()
+  })
+  test('if can get user profile', async () => {
+    await request(app.server).post('/users').send({
+      name: 'Jhon Doe',
+      email: 'jhondoe@example.com',
+      password: 'testpassword',
+    })
+    const authResponse = await request(app.server).post('/sessions').send({
+      email: 'jhondoe@example.com',
+      password: 'testpassword',
+    })
+    const { token } = authResponse.body
+
+    const profileResponse = await request(app.server)
+      .get('/me')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(profileResponse.statusCode).toEqual(200)
+    expect(profileResponse.body.user).toEqual(
+      expect.objectContaining({
+        email: 'jhondoe@example.com',
+      }),
+    )
+  })
+})
+
+ou seja a gente cria o usuuario, faz o login pega o token do login e ai faz a autentificação e ve se ele retorna o codigo certo e o usuario como a gente quer.
+so que daqui para frente todas as rotas de nossa aplicação vao exigir que o usuario esteja logado. então a gente poderia talvez separar isso em uma funç;:éao. mas vamos focar em outros controller por enquanto e depois a gente ortimiza isso.
+ 
+
 
 
 
