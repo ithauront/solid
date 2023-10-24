@@ -5010,6 +5010,49 @@ describe('register (e2e)', () => {
 
 para evitar de ficar fazendo o link todas as vezes a gente pode criar um script para o test:e2e:watch
 "test:e2e:watch": "vitest --dir src/http",
+rodando o docker e rodando esse comando os testes passam.
+
+vamos agora fazer o teste do autenticate. a gente vai colar o este do register nele e mudar o nome para autenticate 
+vamos deixar a criação de usuario que ja tinha porque para fazer login a gente precisa antes criar um usuario.
+então a gente tira so o const response e deixar so a criação usando o await
+a gente copia o email e password utilizados porque devemos ter eles para fazer o login.
+fazemos então uma const response sendo o await app.server usando o metodo post na rota sessions que é a rota do autenticate.
+e a gente passa o email e senha.
+e agora a gente espera que o status code seja 200
+e esperamos tambem que dentro do corpo da resposta venha um token e esse token é qualquer string
+ ap pagina fica assim:
+ import { afterAll, beforeAll, describe, expect, test } from 'vitest'
+import request from 'supertest'
+import { app } from '@/app'
+
+describe('autenticate (e2e)', () => {
+  beforeAll(async () => {
+    await app.ready()
+  })
+  afterAll(async () => {
+    await app.close()
+  })
+  test('if can autenticate', async () => {
+    await request(app.server).post('/users').send({
+      name: 'Jhon Doe',
+      email: 'jhondoe@example.com',
+      password: 'testpassword',
+    })
+    const response = await request(app.server).post('/sessions').send({
+      email: 'jhondoe@example.com',
+      password: 'testpassword',
+    })
+
+    expect(response.statusCode).toEqual(200)
+    expect(response.body).toEqual({
+      token: expect.any(String),
+    })
+  })
+})
+
+
+é importante entender que a gente não cria teste end2end para cada regra de negocio da aplicação, eles são mais abertose globais e e vão meio que testar as rotas. a gente não vai fazer um test end2end pra ver se caso o usuario mandar uma senha errada se ele não deixa autentificar. isso a gente faz nos testes unitarios. a gente testa no e12e as rotas de sucesso da aplicação. como cada teste e2e é pesado a gente não faz testes deles para testar coisas que ja são testadas nos unitarios. então a gente faz so esse teste para testar o fluxo de autentificação.
+
 
 
 
