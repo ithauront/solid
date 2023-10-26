@@ -5614,6 +5614,61 @@ describe('search gyms (e2e)', () => {
   })
 })
 
+agora vamos fazer o nearby.spec.ts quje vamos copiar do search gym a gente vai no teste do fetch nery do use case e copia as informaç éoes das academias proxima e perto e cola no nosso teste.
+agora  na response a gente vai pra rota nearby e no query a gente envia a latitude elongitude  vai ser a latitude e longitude da academia que a gente quer que traga. passamos o set tokent e damos send no expect é parecido com o outro do array com um so o codigo e deve trazer um objeto dentro do array com o titlo near gym fica assim a pagina
+import { afterAll, beforeAll, describe, expect, test } from 'vitest'
+import request from 'supertest'
+import { app } from '@/app'
+import { createAndAuntenticateUser } from '@/utils/test/create-and-autenticate-user'
+
+describe('search nearby gyms (e2e)', () => {
+  beforeAll(async () => {
+    await app.ready()
+  })
+  afterAll(async () => {
+    await app.close()
+  })
+  test('if can search nearby gyms', async () => {
+    const { token } = await createAndAuntenticateUser(app)
+
+    await request(app.server)
+      .post('/gyms')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        title: 'near gym',
+        description: 'gym Description',
+        phone: '0108074561',
+        latitude: -27.2982852,
+        longitude: -49.6481891,
+      })
+    await request(app.server)
+      .post('/gyms')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        title: 'far gym',
+        description: 'gym Description',
+        phone: '0108074561',
+        latitude: 27.0610928,
+        longitude: -49.5229501,
+      })
+    const response = await request(app.server)
+      .get('/gyms/nearby')
+      .query({
+        
+          latitude: -27.2982852,
+          longitude: -49.6481891,
+       
+      })
+      .set('Authorization', `Bearer ${token}`)
+      .send()
+    expect(response.statusCode).toEqual(201)
+    expect(response.body.gyms).toHaveLength(1)
+    expect(response.body.gyms).toEqual([
+      expect.objectContaining({ title: 'near gym' }),
+    ])
+  })
+})
+porem isso vai dar erro porque todo parametro que vem no query é obrigatoriamente uma string então la no controller do nerby a gente tem que na validação do zod dar um coerce para number
 
 
 
