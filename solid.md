@@ -5302,6 +5302,221 @@ export async function gymRoutes(app: FastifyInstance) {
   app.post('gyms', create)
 }
 
+## controllers check in
+vamos fazeer os controllers de checkin
+vamos fazer uma pasta dentro do controllers com o nome checkin  dentro dela um arqauivo chamado routes.ts e ele pode ser igual ao do gyms so que a gente tira todas as rota e deixa apenas o hook da verificação e muda o nome dele.
+import { FastifyInstance } from 'fastify'
+
+import { verifyJWT } from '../../middleware/verify-jwt'
+
+export async function checkInRoutes(app: FastifyInstance) {
+  app.addHook('onRequest', verifyJWT)
+}
+
+vamos agora criar os arquivos. nos temos um create, um history, um metrics, e um validate.
+
+vamos copiar o create de gyms para colocar no create de checkin.
+vamos fazer o createcheckinbody schema
+ele precisa de um latitude e longitude que vao ser do usuario. o usuario vai fazer checkin em uma academia specifica. a gente pode fazer de duas formas, ou a gente recebe o id da academia no body, ou então a gente pode fazer para a rota receber 
+  app.post('/gyms/:gymId/check-ins', create) assim a gente passa o id do gym pelo parametro da rota.
+
+  então nos vamos criar um schema separado pra isso.
+  fica assim os dois schemas
+  export async function create(request: FastifyRequest, reply: FastifyReply) {
+  const createCheckinParmsSchema = z.object({
+    gymId: z.string().uuid(),
+  })
+  const createCheckinBodySchema = z.object({
+    latitude: z.number().refine((value) => {
+      return Math.abs(value) <= 90
+    }),
+    longitude: z.number().refine((value) => {
+      return Math.abs(value) <= 180
+    }),
+  })
+
+  agor a a gente pega a latitude e longitude do parse do body.
+
+  const { latitude, longitude } = createCheckinBodySchema.parse(request.body)
+  const { gymId } = createCheckinParmsSchema.parse(request.params)
+
+  ## correção. no nearby do gyms a gente ta usando body, no request tem que ser query   const { latitude, longitude } = nearbyGymQuerySchema.parse(request.query) mesma coisa no search.
+
+  no execute do create checkin a gente precisa tambem passar o id do usuario usando o request.user.sub. ele fica assim:
+    const createCheckInUseCase = makeCheckInUseCase()
+  await createCheckInUseCase.execute({
+    gymId,
+    userId: request.user.sub,
+    userLatitude: latitude,
+    userLongitude: longitude,
+  })
+   o controler de create fica assim:
+   import { makeCheckInUseCase } from '@/use-cases/factory/make-check-in-use-case'
+import { makeCreateGymUseCase } from '@/use-cases/factory/make-create-gym-use-case'
+import { FastifyReply, FastifyRequest } from 'fastify'
+import { z } from 'zod'
+
+export async function create(request: FastifyRequest, reply: FastifyReply) {
+  const createCheckinParmsSchema = z.object({
+    gymId: z.string().uuid(),
+  })
+  const createCheckinBodySchema = z.object({
+    latitude: z.number().refine((value) => {
+      return Math.abs(value) <= 90
+    }),
+    longitude: z.number().refine((value) => {
+      return Math.abs(value) <= 180
+    }),
+  })
+
+  const { latitude, longitude } = createCheckinBodySchema.parse(request.body)
+  const { gymId } = createCheckinParmsSchema.parse(request.params)
+
+  const createCheckInUseCase = makeCheckInUseCase()
+  await createCheckInUseCase.execute({
+    gymId,
+    userId: request.user.sub,
+    userLatitude: latitude,
+    userLongitude: longitude,
+  })
+
+  return reply.status(201).send()
+}
+
+vamos para os proximos.
+para o history vamos copiar o search do gyms vamos substituir as coisas e ele fica assim:
+import { makeFetchUserCheckInHistoryUseCase } from '@/use-cases/factory/make-fetch-user-checkins-history'
+import { FastifyReply, FastifyRequest } from 'fastify'
+import { z } from 'zod'
+
+export async function history(request: FastifyRequest, reply: FastifyReply) {
+  const CheckinHitoryQuerySchema = z.object({
+    page: z.coerce.number().min(1).default(1),
+  })
+
+  const { page } = CheckinHitoryQuerySchema.parse(request.query)
+
+  const fetchUserCheckInHistoryUseCase = makeFetchUserCheckInHistoryUseCase()
+  const { checkIns } = await fetchUserCheckInHistoryUseCase.execute({
+    userId: request.user.sub,
+    page,
+  })
+
+  return reply.status(200).send({
+    checkIns,
+  })
+}
+
+para o de metricas a gente copia o de history que é bem semelhante mas elas não tem nem parametro. então tiramos essa parte. apos as substituições fica assim:
+import { makeGetUserMetricsUseCase } from '@/use-cases/factory/make-get-user-metrics'
+import { FastifyReply, FastifyRequest } from 'fastify'
+
+export async function history(request: FastifyRequest, reply: FastifyReply) {
+  const getUserMetricsUseCase = makeGetUserMetricsUseCase()
+  const { checkInsCount } = await getUserMetricsUseCase.execute({
+    userId: request.user.sub,
+  })
+
+  return reply.status(200).send({
+    checkInsCount,
+  })
+}
+
+para o validate a gente copia o create. mas a gente pega o id do cheki atravez dos parametros. porque a rota dos checkins vai ser um patch porque queremos mudar uma unica informação, e ela vai passar o checkinId nos parametros
+ app.patch('/check_ins/:checkInId/validate', validate)
+ voltando ao controller, não vai ter body
+ ficou assim:
+ import { makeValidateCheckInUseCase } from '@/use-cases/factory/make-validate-check-in'
+import { FastifyReply, FastifyRequest } from 'fastify'
+import { z } from 'zod'
+
+export async function validate(request: FastifyRequest, reply: FastifyReply) {
+  const validateCheckInParmsSchema = z.object({
+    checkInId: z.string().uuid(),
+  })
+
+  const { checkInId } = validateCheckInParmsSchema.parse(request.params)
+
+  const validateCheckInUseCase = makeValidateCheckInUseCase()
+  await validateCheckInUseCase.execute({
+    checkInID: checkInId,
+  })
+
+  return reply.status(204).send()
+}
+
+como o checkInId esta escrito diferente em dois lugares diferentes a gente teve que passar ele assim, fiquei com preguiçq de ir la nos arquivos corrigir.
+por não ter nenhuma respsota a gentevai enviar um status code de 204
+voltamos agora nas rotas para criar as outras, nos ja temos a post e a patch agora vamos criar uma get para history e outra para metric a pagina ficou assim:
+
+import { FastifyInstance } from 'fastify'
+
+import { verifyJWT } from '../../middleware/verify-jwt'
+import { create } from './create'
+import { validate } from './validate'
+import { history } from './history'
+import { metrics } from './metrics'
+
+export async function checkInRoutes(app: FastifyInstance) {
+  app.addHook('onRequest', verifyJWT)
+
+  app.get('/check-ins/history', history)
+  app.get('check-ins/metrics', metrics)
+
+  app.post('/gyms/:gymId/check-ins', create)
+
+  app.patch('/check-ins/:checkInId/validate', validate)
+}
+
+# testes rotas de academia
+vamos agora fazer os arquivos de teste das rotas das academias
+mas antes disso a gente vai fazer uma função pra reaproveitar aquela parte nos testes do usuario que criava um usuario e fazia autentificação e devolvia o token. porque todas essas rotas vao precisar ser autenticada então vai ser mais facil ficar chamando uma função do que repetir todo aquele esauema cada vez
+vamos então pegar essa parte do teste do profile:
+await request(app.server).post('/users').send({
+      name: 'Jhon Doe',
+      email: 'jhondoe@example.com',
+      password: 'testpassword',
+    })
+    const authResponse = await request(app.server).post('/sessions').send({
+      email: 'jhondoe@example.com',
+      password: 'testpassword',
+    })
+    const { token } = authResponse.body
+  
+  vamos na pasta utils e dentro dela fazemos uma pasta test e dentro dela um arquivo chamad create-and-autenticate-user.ts
+  dentro dele vamos export uma funcntion com esse mesmo nome e
+  nela a gente recorta aquela parte do profile test que a gente colocou acima e cola nesse novo arquivo test importamos o request do supertest e a gente passa para a função o app do fastify instance para ele conseguir fazer a requisição. e a gente retorna dela o token dentro de um objeto porque tamvez a gente possa querer retornar mais coisas.. fica assim.
+  import { FastifyInstance } from 'fastify'
+import request from 'supertest'
+
+export async function createAndAuntenticateUser(app: FastifyInstance) {
+  await request(app.server).post('/users').send({
+    name: 'Jhon Doe',
+    email: 'jhondoe@example.com',
+    password: 'testpassword',
+  })
+  const authResponse = await request(app.server).post('/sessions').send({
+    email: 'jhondoe@example.com',
+    password: 'testpassword',
+  })
+  const { token } = authResponse.body
+
+  return {token}
+}
+
+agora no profile a gente pega o token assim:
+ test('if can get user profile', async () => {
+    const { token } = await createAndAuntenticateUser(app)
+    passano o nosso app para a função create and autnticate user.
+    agora a gente copia o teste do profile inteiro e a gente cria um test la no gyms para criação de academia
+    create.spec.ts
+    
+
+
+
+
+
+
 
 
 
