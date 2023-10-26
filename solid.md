@@ -5510,7 +5510,110 @@ agora no profile a gente pega o token assim:
     passano o nosso app para a função create and autnticate user.
     agora a gente copia o teste do profile inteiro e a gente cria um test la no gyms para criação de academia
     create.spec.ts
-    
+
+a gente muda os nomes do test e do describe, depois da const do token a gente faz so uma const de response.
+
+# vamos la no app. e colocamos uma rota de checkinRoutes
+export const app = fastify()
+app.register(fastifyJwt, {
+  secret: env.JWT_SECRET,
+})
+app.register(userRoutes)
+app.register(gymRoutes)
+app.register(checkInRoutes)
+# voltamos para o teste
+no response a gente da um .postna rota gyms a gente da o set da autorização como estava e a gente envia os dados para a criação
+# detalhe na profile test tem o send tambem em vazio assim
+   const profileResponse = await request(app.server)
+      .get('/me')
+      .set('Authorization', `Bearer ${token}`)
+      .send()
+# voltamos para o test de gym creation
+a gente passa as coisas para o send e valida um status code 201 fica assim a pagina:
+import { afterAll, beforeAll, describe, expect, test } from 'vitest'
+import request from 'supertest'
+import { app } from '@/app'
+import { createAndAuntenticateUser } from '@/utils/test/create-and-autenticate-user'
+
+describe('create gym (e2e)', () => {
+  beforeAll(async () => {
+    await app.ready()
+  })
+  afterAll(async () => {
+    await app.close()
+  })
+  test('if can create a gym', async () => {
+    const { token } = await createAndAuntenticateUser(app)
+
+    const response = await request(app.server)
+      .post('/gyms')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        title: 'javascript gym',
+        description: 'a gym for javascript',
+        phone: '0154878954',
+        latitude: -27.2892852,
+        longitude: -49.6481891,
+      })
+
+    expect(response.statusCode).toEqual(201)
+  })
+})
+
+
+vamos continuar fazendo os testes para as outras funcionalidaras. vamos fazer o teste de search gyms
+search.spec.ts
+a gente copia o teste de create nele.e muda os nomes. para a gente testar a busca vamos terq ue criar algumas academias antes então vamos chamar a trota de criação de academia duas vezes com titulos diferentes.
+agora no const response a gente vai pegar o app.server e vamos dar um get/gyms/search que é a rota da busca depois enviamos o query que vai ser um objeto com query sedo igual a java ou type enviamos o header de autorização e damos um send 
+agora a gente espera que o statuscode seja duzendo esperamos que o body gyms tenha length 1 ou seja que seja um array com um unico index la dentro. e que ele seja um array que conhea um objeto que contenha o titulo typescript gym fica assim:
+import { afterAll, beforeAll, describe, expect, test } from 'vitest'
+import request from 'supertest'
+import { app } from '@/app'
+import { createAndAuntenticateUser } from '@/utils/test/create-and-autenticate-user'
+
+describe('search gyms (e2e)', () => {
+  beforeAll(async () => {
+    await app.ready()
+  })
+  afterAll(async () => {
+    await app.close()
+  })
+  test('if can search  gyms', async () => {
+    const { token } = await createAndAuntenticateUser(app)
+
+    await request(app.server)
+      .post('/gyms')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        title: 'javascript gym',
+        description: 'a gym for javascript',
+        phone: '0154878954',
+        latitude: -27.2892852,
+        longitude: -49.6481891,
+      })
+    await request(app.server)
+      .post('/gyms')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        title: 'typescript gym',
+        description: 'a gym for javascript',
+        phone: '0154878954',
+        latitude: -27.2892852,
+        longitude: -49.6481891,
+      })
+    const response = await request(app.server)
+      .get('/gyms/search')
+      .query({ query: 'type' })
+      .set('Authorization', `Bearer ${token}`)
+      .send()
+    expect(response.statusCode).toEqual(200)
+    expect(response.body.gyms).toHaveLength(1)
+    expect(response.body.gyms).toEqual([
+      expect.objectContaining({ title: 'typescript gym' }),
+    ])
+  })
+})
+
 
 
 
