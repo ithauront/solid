@@ -5670,6 +5670,246 @@ describe('search nearby gyms (e2e)', () => {
 })
 porem isso vai dar erro porque todo parametro que vem no query é obrigatoriamente uma string então la no controller do nerby a gente tem que na validação do zod dar um coerce para number
 
+# checkin test
+vamos passar para o create.spec.ts de checkin copiando o da criação de academia.
+para criar o checkin a gente precisa ter uma academia criada.
+vão haver casos em que para criar o checkin voce não vai ter a rota pra criar a academia. nesses casos não vai ter problema em importar o prisma e fazer a inseção manual. a com um Prisma.gym.create({
+  aqui os dados da academia.
+})
+
+geralmente a gente evita de fazer isso porque isso é jum pouco mais sucetivel a erro. no caso desse teste a gente vai fazer com essa criação pelo prisma.
+  const gym = await prisma.gym.create({
+      data: {
+        title: 'javascript gym',
+        latitude: -27.2892852,
+        longitude: -49.6481891,
+      },
+    })
+
+    agora na nossa rota post a gente vai jogar o post no gyms/${gym.id}/check-ins pegando o ide desse gym que a gente criou.
+    para fazer o checkin a gente precisa enviar a latitude e longitude e esperamos que o status seja 201
+    fica assim o teste
+    import { afterAll, beforeAll, describe, expect, test } from 'vitest'
+import request from 'supertest'
+import { app } from '@/app'
+import { createAndAuntenticateUser } from '@/utils/test/create-and-autenticate-user'
+import { prisma } from '@/lib/prisma'
+
+describe('create check-in (e2e)', () => {
+  beforeAll(async () => {
+    await app.ready()
+  })
+  afterAll(async () => {
+    await app.close()
+  })
+  test('if can create a check-in', async () => {
+    const { token } = await createAndAuntenticateUser(app)
+
+    const gym = await prisma.gym.create({
+      data: {
+        title: 'javascript gym',
+        latitude: -27.2892852,
+        longitude: -49.6481891,
+      },
+    })
+
+    const response = await request(app.server)
+      .post(`/gyms/${gym.id}/check-ins`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        latitude: -27.2892852,
+        longitude: -49.6481891,
+      })
+
+    expect(response.statusCode).toEqual(201)
+  })
+})
+
+agora vamos para o teste de histoic e a gente copia o create nele.
+
+mudamos o nome e agoa para listar os checkins a gente precisa fazer os checkins antes, então criamos tambel a academia pelo prisma. a gente poderia tambem criar o checkin pelo prisma. a gente vai usar no prisma o metodo createMany para criar varios checkins.
+ai no create many a gente passa data como sendo um array e dentro de cada objeto que a gente vai passar dentro desse array vai ser um checkin diferente. temos que passar o id do gym pelo gym, mas para pegar o usuario id do usuario autentificado a gente vai ter que fazer uma const user para pegar um usuario cadastrado no banco, no nosso caso nos so temos um. etão vamos jogar um find first or trwho. 
+const user = await prisma.user.findFirstOrThrow()
+agora nos nossos checkins a gente pode usar ele usando o user.id
+vamos fazer dois checkins iguais
+e agora na const response a rota vai ser get checkin / history
+no send a gente não manda nada
+e no expect alem de a gente esperar um 200 de status a gente expera tambem que o body seja um array com objetos contento o gym id e o userid fica assim:
+import { afterAll, beforeAll, describe, expect, test } from 'vitest'
+import request from 'supertest'
+import { app } from '@/app'
+import { createAndAuntenticateUser } from '@/utils/test/create-and-autenticate-user'
+import { prisma } from '@/lib/prisma'
+
+describe('check-in history (e2e)', () => {
+  beforeAll(async () => {
+    await app.ready()
+  })
+  afterAll(async () => {
+    await app.close()
+  })
+  test('if can list a history of check-ins', async () => {
+    const { token } = await createAndAuntenticateUser(app)
+
+    const gym = await prisma.gym.create({
+      data: {
+        title: 'javascript gym',
+        latitude: -27.2892852,
+        longitude: -49.6481891,
+      },
+    })
+
+    const user = await prisma.user.findFirstOrThrow()
+
+    await prisma.checkIn.createMany({
+      data: [
+        {
+          gym_id: gym.id,
+          user_id: user.id,
+        },
+        {
+          gym_id: gym.id,
+          user_id: user.id,
+        },
+      ],
+    })
+
+    const response = await request(app.server)
+      .get('check-ins/history')
+      .set('Authorization', `Bearer ${token}`)
+      .send()
+
+    expect(response.statusCode).toEqual(200)
+    expect(response.body.checkIns).toEqual([
+      expect.objectContaining({ gym_id: gym.id, user_id: user.id }),
+    ])
+  })
+})
+
+vamos agora fazer o metrics copiamos o history dentro dele e mudamos os nomes
+deixamos a criação de academia e checkins no response mudamos a rota para check-ins/metrics
+
+no expect deixamos o 200 e esperamos que no checkinCounts tenha igual a 2 porque temos dois checkins fica asim:
+import { afterAll, beforeAll, describe, expect, test } from 'vitest'
+import request from 'supertest'
+import { app } from '@/app'
+import { createAndAuntenticateUser } from '@/utils/test/create-and-autenticate-user'
+import { prisma } from '@/lib/prisma'
+
+describe('check-in metrics (e2e)', () => {
+  beforeAll(async () => {
+    await app.ready()
+  })
+  afterAll(async () => {
+    await app.close()
+  })
+  test('if can get a count of check-ins', async () => {
+    const { token } = await createAndAuntenticateUser(app)
+
+    const gym = await prisma.gym.create({
+      data: {
+        title: 'javascript gym',
+        latitude: -27.2892852,
+        longitude: -49.6481891,
+      },
+    })
+
+    const user = await prisma.user.findFirstOrThrow()
+
+    await prisma.checkIn.createMany({
+      data: [
+        {
+          gym_id: gym.id,
+          user_id: user.id,
+        },
+        {
+          gym_id: gym.id,
+          user_id: user.id,
+        },
+      ],
+    })
+
+    const response = await request(app.server)
+      .get('/check-ins/metrics')
+      .set('Authorization', `Bearer ${token}`)
+      .send()
+
+    expect(response.statusCode).toEqual(200)
+    expect(response.body.checkInsCount).toEqual(2)
+  })
+})
+
+vamos agora para o validate
+nesse a gente vai copiar o do create mudamos os nomes.
+no vaidatade a gente criou a academia e vamos criar um checkin tambem usando o prisma esse checkin vai ser declarado como let. e vamos tambem pegar o usuario como fizemos nos outros
+agora na nossa const response a gente vai pegar a rota checkins/${checkin.id}/validate com um patch e no send a gente não envia nada.
+esperalmos que o statuscode seja 204 e esperamos tambem que a gente possa fazer uma nova busca no bancode dados usando o find unique or trhow do prisma where o checinid seja igual ao checkin id qu a gente passou.
+  checkIn = await prisma.checkIn.findUniqueOrThrow({
+      where: {
+        id: checkIn.id,
+      },
+    })
+
+    nos temos que fazer dessa forma porque o validate néao retorna um body então a gente não tem como pegar o response.body para saber se o validate_at mudou a gente precisa é chamar o banco de dados para preencher o checkin que a gente tinha com o checkin do banco de dados e assim poder examinar ele 
+dessa forma agora a gente pode esperar depois que a gente chalou a rota que a nossa validate_at do checkin esteja preenchida com qualquer data(temporal).
+ expect(checkIn.validated_at).toEqual(expect.any(Date))
+ o legal disso é que com o teste endtoend a gente pode inclusive validar se alguma informação mudou no banco de dados.
+
+
+ a pagina toda fica assim:
+ import { afterAll, beforeAll, describe, expect, test } from 'vitest'
+import request from 'supertest'
+import { app } from '@/app'
+import { createAndAuntenticateUser } from '@/utils/test/create-and-autenticate-user'
+import { prisma } from '@/lib/prisma'
+
+describe('validate check-in (e2e)', () => {
+  beforeAll(async () => {
+    await app.ready()
+  })
+  afterAll(async () => {
+    await app.close()
+  })
+  test('if can validate a check-in', async () => {
+    const { token } = await createAndAuntenticateUser(app)
+    const user = await prisma.user.findFirstOrThrow()
+
+    const gym = await prisma.gym.create({
+      data: {
+        title: 'javascript gym',
+        latitude: -27.2892852,
+        longitude: -49.6481891,
+      },
+    })
+    let checkIn = await prisma.checkIn.create({
+      data: { user_id: user.id, gym_id: gym.id },
+    })
+
+    const response = await request(app.server)
+      .patch(`/check-ins/${checkIn.id}validate`)
+      .set('Authorization', `Bearer ${token}`)
+      .send()
+
+    expect(response.statusCode).toEqual(204)
+
+    checkIn = await prisma.checkIn.findUniqueOrThrow({
+      where: {
+        id: checkIn.id,
+      },
+    })
+
+    expect(checkIn.validated_at).toEqual(expect.any(Date))
+  })
+})
+
+## fazer atençao a colocar a / nas rotas quando a gente chama a const response por exemplo aqui  .get('check-ins/metrics') isso esta errado e muitos dos arquivos que copiei aqui tem esse erro. temos que tomar cuidado com isso o correto é .get('/check-ins/metrics') atenção para a barra antes do checkin.
+
+
+
+
+
+
+
 
 
 
