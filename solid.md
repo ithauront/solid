@@ -5904,6 +5904,151 @@ describe('validate check-in (e2e)', () => {
 
 ## fazer atençao a colocar a / nas rotas quando a gente chama a const response por exemplo aqui  .get('check-ins/metrics') isso esta errado e muitos dos arquivos que copiei aqui tem esse erro. temos que tomar cuidado com isso o correto é .get('/check-ins/metrics') atenção para a barra antes do checkin.
 
+## jaspn web token
+um dos problemas do jason web token é que ele é valido eternamente, se o usuario tiver o conhecimento tecnico para obter o token ao se logar uma vez pode continuar usando esse token eternamente e ele sempre va ser valido.
+para contornar esse problema. então o que muita aplicação faz é colocar uma dar uma data de validação para esse token, eles fazem isso com o iat sendo a data que foi feito o token assim o token pode expirar depois de um tempo como 1 semana por exemplo.
+para manter o usuario logado pra sempre a gente usa o refresh token que é o seguinte quando o usuario faz o login a gente cria um jwt normal como a gente faz e faz tambem um segundo jwt com expiração maior e esse seguntdo token não vai ser visivel, então apos o primeiro expirar o backend vai ver se existe um segundo token, gerado para ele. e esse segundo token vai servir para recriar um token de validação para ele. a diferença é que o primeiro token é acessivel a nivel de frontend o segundo vai ficar encriptado e invisivel para o frontend não conseguir acesso a ele. assim uma pessoa maliciosa não tem acesso a ele. tem varias extrategias para fazer isso. a ente pode salvar esse token por exemplo no banco de dados e assim que o usuario fazer logout a gente marca ess tokne como não mais valido; 
+para implementar o resfresh token nos vamos la dentro do app ts e na linha appregister
+app.register(fastifyJwt, {
+  secret: env.JWT_SECRET,
+})
+nos vamos configurar nobvas linhas
+sign: {
+  experiseAt:'' -- em aplicação que a gente vai deixar o usuario logado para sempre a gente vai tragalhar com data de expiração bem curta assim a gente consegue revalidar esse token sempre com o nosso refreshtoken - vamos botar 10m ou seja 10 minutos
+}
+fica asim
+app.register(fastifyJwt, {
+  secret: env.JWT_SECRET,
+  sign: {
+    expiresIn: '10m',
+  },
+})
+agora nos vamos para o nosso controller de autenticate que é onde a gente cria o token do usuario
+a gente pega essa const que cria o token e faz outra para criar o refreshtoken assim ficamos con duas const parecdas uma token e uma refreshtoken
+    const token = await reply.jwtSign(
+      {},
+      {
+        sign: {
+          sub: user.id,
+        },
+      },
+    )
+
+so que nesse refresh token a gente configura uma quantidade maior de tempo como 7d sete dias assim o usuario so vai perder autenticação se ele ficar 7 dias sem entrar na aplicação. 
+os dois tokens juntos ficam assim:
+ const token = await reply.jwtSign(
+      {},
+      {
+        sign: {
+          sub: user.id,
+        },
+      },
+    )
+    const refreshToken = await reply.jwtSign(
+      {},
+      {
+        sign: {
+          sub: user.id,
+          expiresIn: '7d',
+        },
+      },
+    )
+
+    agora no return o primeiro token a gente vai continuar mandando como a gente manda. e o front end vai ter acesso. porem o segundo cookie a gente vai mandar como um cookie e a vantagem disso é que o cookie pode não ser visto pelo front end.
+    para trabalhar com cookies a gente vai ter que instalar o modulo
+    npm i @fastify/cookie 
+    voltamos para o app.ts e importamos o fastify/cookie
+    e a geten cadastra ele assim: parte cortada da pagina que pega as a importação e a register:
+    import fastifyCookie from '@fastify/cookie'
+import { gymRoutes } from './http/controller/gym/routes'
+import { checkInRoutes } from './http/controller/checkIn/routes'
+
+export const app = fastify()
+app.register(fastifyJwt, {
+  secret: env.JWT_SECRET,
+  sign: {
+    expiresIn: '10m',
+  },
+})
+app.register(fastifyCookie)
+
+voltamos para a autenticate
+agora no reply antes do send() a gente coloca a opção setCokkie e passa para ele como primeiro argumento uma string com o nome do cookie que vai ser refreshtoken um segundo argumento a gente passa o refreshtoken que a gente criou e o terceiro argumento vai ser um objeto e nele a gente vai configurar algumas coisas; primeiro o path que vai ser / assim dizemos que todas as rotas da nossa aplicação podem ter acesso a esse cookie.
+segunda opçõa vai ser o secure e a gente bota nela true para dizer que ele vai ser encriptado com https depois a gente tem a opção sameSite true tambem para dizer que ai ser so acessivel no nosso dominio e por fim a httpOnly
+ tambem true para dizer que ele so vai ser acessivel no nosso backend.
+ o autenticate fica assim:
+ import { InvalidCredentialsError } from '@/use-cases/errors/invalid-credentials-error'
+import { makeAutenticateUseCase } from '@/use-cases/factory/make-autenticate-use-case'
+import { FastifyReply, FastifyRequest } from 'fastify'
+import { z } from 'zod'
+
+export async function autenticate(
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
+  const autenticateBodySchema = z.object({
+    email: z.string().email(),
+    password: z.string().min(7),
+  })
+
+  const { email, password } = autenticateBodySchema.parse(request.body)
+
+  try {
+    const autenticateUseCase = makeAutenticateUseCase()
+    const { user } = await autenticateUseCase.execute({
+      email,
+      password,
+    })
+
+    const token = await reply.jwtSign(
+      {},
+      {
+        sign: {
+          sub: user.id,
+        },
+      },
+    )
+    const refreshToken = await reply.jwtSign(
+      {},
+      {
+        sign: {
+          sub: user.id,
+          expiresIn: '7d',
+        },
+      },
+    )
+
+    return reply
+      .setCookie('refreshToken', refreshToken, {
+        path: '/',
+        secure: true,
+        sameSite: true,
+        httpOnly: true,
+      })
+      .status(200)
+      .send({ token })
+  } catch (err) {
+    if (err instanceof InvalidCredentialsError) {
+      return reply.status(400).send({ message: err.message })
+    }
+    return reply.status(500).send() // TODO fixthis
+  }
+}
+
+com isso salvo podemos testar com o insmomnia vamos na rota autenticate e enviamos o usuario e devemos ver o cookie voltar dessa forma
+agora a gente volta para o app e dentro do nosso register que tem o jwt a gente coloca uma segunda opção 
+app.register(fastifyJwt, {
+  secret: env.JWT_SECRET,
+  cookie: {
+    cookieName: 'refreshToken',
+    signed: false,
+  },
+  sign: {
+    expiresIn: '10m',
+  },
+})
+ou seja a gente coloca um cookie para ele ler da o nome do cookie e diz que néao é assinado porque ele não tem aquela assinatura do jwt que a gente discutiu antes.
+
 
 
 
