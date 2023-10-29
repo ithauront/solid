@@ -6048,6 +6048,76 @@ app.register(fastifyJwt, {
   },
 })
 ou seja a gente coloca um cookie para ele ler da o nome do cookie e diz que néao é assinado porque ele não tem aquela assinatura do jwt que a gente discutiu antes.
+# controller de refrsh
+vamos na pasta users e vamoscriar um arquivo chamado refresh.ts
+esse arquivo vai servrir para revalidar o token iusando o refresh quando o outro token expirar.
+vamos copiar o codigo da rota autenticate e mudar o nome para refresh.
+antes de a gente melhorar esse arquivo a gente vai logo no nosso routes.ts e vamos crar uma nova rota usando o metodo patch.('/token/refresh) ou seja ela vai pegar um token e vai atualizar ele
+  app.patch('/token/refresh', refresh)
+  a gente não vai colocar nela o hook de autentificação porque éla é justamente para ser chamada pelo frontedn quando o usuario não estiver mais autentificado.
+  então voltamos la no nosso arquivo refresh e logo no inicio dafunção a gente coloca como primeira coisa a ser feita a chamada do await request.jwtverify e a gente vai passar para esse jwtverify a opção onlyCookie como sendo true.
+  essa opão vai validar que o usuario esta verificado mas não vai olhar para o cabecalho dfa aplicação que é o que nos usamos para normalmente passar a autentificação. ela vai olhar apenas para o cookie que é onde a gente passa o refreshtoken
+  se o refreshtoken existir e ainda for valido ele vai rodar o resto dessa função. então com ele existindo e sendo valido a gente vai gerar um novo token.
+  então vamos deletar tudo até a const token retiramos tambem o catch do fim
+  agora a gente tem que mudar o user porque a gente não tem mais acesso ao user então vamos fazer requst.user.sub para pegar os dados do user logado.
+  o controller fica assim:
+  import { FastifyReply, FastifyRequest } from 'fastify'
+
+export async function refresh(request: FastifyRequest, reply: FastifyReply) {
+  await request.jwtVerify({ onlyCookie: true })
+
+  const token = await reply.jwtSign(
+    {},
+    {
+      sign: {
+        sub: request.user.sub,
+      },
+    },
+  )
+  const refreshToken = await reply.jwtSign(
+    {},
+    {
+      sign: {
+        sub: request.user.sub,
+        expiresIn: '7d',
+      },
+    },
+  )
+
+  return reply
+    .setCookie('refreshToken', refreshToken, {
+      path: '/',
+      secure: true,
+      sameSite: true,
+      httpOnly: true,
+    })
+    .status(200)
+    .send({ token })
+}
+
+
+a gente pode testar peo insmonia criando uma nova rota chamada refreshToken e não enviar nada pela autorização a gente cria essa rota para o metodo patch para localhost/token/refresh
+e enviamos para ele o email e senha no body.
+ele vai gerar novos tokens tanto o de autentificação quanto o novo cookie do refresh.
+é uma rota que não bate no banco de dados ntão ela é bem rapida.
+porem uma estrategia que a gente poderia ter para o futuro seia salvar esse refreshtoken no banco de dados assim se em algum momento a gente quiser invalidar o login do usuario basta a gente ir na coluna do refresh token e falar que esse token não é mais valido.
+é importante entender que teoricamente o token dura so 7 dias,então apos sete dias ele expiraria. mas não é em assim porque se o usuario estiver sempre entrando na aplicação ele nunca expira porque sempre faz um novo, então existe essa seguranda que a gente poderia fazer uma logica para mesmo se o usuario estivesse sempre na aplicação apos um numero X de requisições por exemplo fosse necessario a senha de novo, e isso teria que invalidar o refreshtoken.
+agora vamos criar um teste para essa rota
+vamos co^piar o teste de autenticate e mudar os nomes para refresh e vamos trocar o nome na const response para authResponse
+ai a gente abaixo faz uma const cookies para pegar os cookies da authResponse e dele a gente da um get e pass o set-cookie
+ const cookies = authResponse.get('Set-Cookie') 
+
+ e agora a gente cria a const response criando uma nova chamada para o servidor usando o metodo patch e a tora /tokens/refresh a gente da um set cookie para enviar nossos cookies e depois da um .send() 
+    const response = await request(app.server)
+      .patch('/token/refresh')
+      .set('Cookie', cookies)
+      .send()
+
+      agora o nosso expect é o statuscode 200 e que o body tenha um novo token e esperamos tambem que o nosso response.get('set-cookie') seja iguam a um array e dentro desse array esperamos que tenha uma sgtring contendo refreshToken=
+      
+
+
+
 
 
 
