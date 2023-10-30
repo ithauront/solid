@@ -6114,7 +6114,250 @@ ai a gente abaixo faz uma const cookies para pegar os cookies da authResponse e 
       .send()
 
       agora o nosso expect é o statuscode 200 e que o body tenha um novo token e esperamos tambem que o nosso response.get('set-cookie') seja iguam a um array e dentro desse array esperamos que tenha uma sgtring contendo refreshToken=
-      
+
+# autorizaçao por cargos (rbca)
+nos podemos ter esse conceito de autorização por cargos ou seja um admin tem mais autorizações do que um usuario padrão.
+ou seja cada usuario vai ter acesso a partes do sistema baseado no cargo dele.
+trm aplicações que vao em niveis profundos outros so olham as rotas se o usuario estiver autentificado ele pode chamar a rota. isso é o que a gente faz e a maioria das alicações fazem.
+nos vamos no nosso schema do banco de dados
+ou seja na pasta prisma e no schema.prisma
+e no model user a gente vai adicionar a role que vai ser uma string:
+model User {
+  id            String   @id @default(uuid())
+  name          String
+  email         String   @unique
+  password_hash String
+  role          String
+  created_at    DateTime @default(now())
+
+  CheckIns CheckIn[]
+
+  @@map("users")
+}
+
+e como vamos ter umleque de cargos predeterminados dentro do prisma eu posso criar o enum então antes do model user a gente cria um enum e vamos chamar ele de Role e abrimos um objeto para colocar quais são os cargos vamos criar eles em caixa alta vamos teradmin e memeber e dentro vamos colocar admin e member em caixa alta
+ai agora no role ao inves de colocar string a gente vai colocar Role ou seja vamos pegar essa tipagem,  e colocamos o default para ser member fica assim:
+enum Role {
+    ADMIN
+    MEMBER
+}
+
+model User {
+  id            String   @id @default(uuid())
+  name          String
+  email         String   @unique
+  password_hash String
+  role          Role @default(MEMBER)
+  created_at    DateTime @default(now())
+
+  CheckIns CheckIn[]
+
+  @@map("users")
+}
+
+agora rodamos um npx prisma migrate dev 
+assim ele vai rodar essa migration
+vamos dar o nome ou motivo de add role to userrs
+e como a  gente colocou default como memeber todos agora vao ser membezr
+agora a gente vai no insomnia cadastramos um outro usuario e no prisma estudio a gente troca o role deme para admin
+tentei criar passando como role ADMIN na requisição. vou ver pelo prisma sudio se a gente acha ele como admin.
+n éao tinha feito. e eu tambem ja tinha varios registros la, todos como member. eu apaguei os registros desnecessarios e so deixei dois. mudei um dos dois de member para admin manualmente.
+iuri212154@hotmail.com
+esse acima é o usuario que esta como admin
+agora vamos la no autentificate é alem de salvar no token do usuario o sign dele com o id dele a gente tambem no primeiro objeto {o payload} vamos salvar tambem a role dele sendo user.role fica assim:
+
+porem no refresh teria duas formar de pegar a role do usuario. a gente poderia crar um user como a gente fez no autenticate. ou então a gente pode enviar a role dentro do refreshtoken do autenticate e assim ter acesso no refresh é o que vamos fazer.
+ela fica assim:
+import { InvalidCredentialsError } from '@/use-cases/errors/invalid-credentials-error'
+import { makeAutenticateUseCase } from '@/use-cases/factory/make-autenticate-use-case'
+import { FastifyReply, FastifyRequest } from 'fastify'
+import { z } from 'zod'
+
+export async function autenticate(
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
+  const autenticateBodySchema = z.object({
+    email: z.string().email(),
+    password: z.string().min(7),
+  })
+
+  const { email, password } = autenticateBodySchema.parse(request.body)
+
+  try {
+    const autenticateUseCase = makeAutenticateUseCase()
+    const { user } = await autenticateUseCase.execute({
+      email,
+      password,
+    })
+
+    const token = await reply.jwtSign(
+      {
+        role: user.role,
+      },
+      {
+        sign: {
+          sub: user.id,
+        },
+      },
+    )
+    const refreshToken = await reply.jwtSign(
+      {
+        role: user.role,
+      },
+      {
+        sign: {
+          sub: user.id,
+          expiresIn: '7d',
+        },
+      },
+    )
+
+    return reply
+      .setCookie('refreshToken', refreshToken, {
+        path: '/',
+        secure: true,
+        sameSite: true,
+        httpOnly: true,
+      })
+      .status(200)
+      .send({ token })
+  } catch (err) {
+    if (err instanceof InvalidCredentialsError) {
+      return reply.status(400).send({ message: err.message })
+    }
+    return reply.status(500).send() // TODO fixthis
+  }
+}
+
+agora a gente vai em types fatsityJWT.d.ts 
+e adiciona n usero role podendo ser adin ou member fica assim:
+import '@fastify/jwt'
+
+declare module '@fastify/jwt' {
+  export interface FastifyJWT {
+
+    user: {
+      sub: string
+       role: 'ADMIN' | 'MEMBER'
+    }
+  }
+}
+
+agora no refreshe a gente faz uma const para pegar a role de dentro do request.user e ai a gente reencaminha ela dentro do payload do refresh fica assim:
+import { FastifyReply, FastifyRequest } from 'fastify'
+
+export async function refresh(request: FastifyRequest, reply: FastifyReply) {
+  await request.jwtVerify({ onlyCookie: true })
+  const { role } = request.user
+  const token = await reply.jwtSign(
+    {
+      role,
+    },
+    {
+      sign: {
+        sub: request.user.sub,
+      },
+    },
+  )
+  const refreshToken = await reply.jwtSign(
+    { role },
+    {
+      sign: {
+        sub: request.user.sub,
+        expiresIn: '7d',
+      },
+    },
+  )
+
+  return reply
+    .setCookie('refreshToken', refreshToken, {
+      path: '/',
+      secure: true,
+      sameSite: true,
+      httpOnly: true,
+    })
+    .status(200)
+    .send({ token })
+}
+
+agora vamos manter o cargo do usuario quando a gente fizer o refreh. porem agora vamos criar um novo middleware para nossa aplicação.
+vamos criar um arquivo chamado ondly-admin e nele vamos copiar o middleware do verify e trocar de nome para only admin
+porem ne e a gente não vai verificar o token/ a gente vai fazer uma cont chaada role, que vai pegar o role do request.user e vamos fazer uma coisa if assim se o role nao for o de admin a gente vai retornar o erro. se não a gente  não rtorna nada a pessoa vai ser adm vai ser adm e ela vai poder ter acesso ao resto; fica assim:
+import { FastifyReply, FastifyRequest } from 'fastify'
+
+export async function onlyAdmin(request: FastifyRequest, reply: FastifyReply) {
+  const { role } = request.user
+  if (role !== 'ADMIN') {
+    return reply.status(401).send({ message: 'Unauthorized' })
+  }
+}
+porem vamos modificar isso para ser melhor a gente vai trocar o nome do middleware para verifyRole.ts
+e la dentro a gente troca a middleware para ser uma função de dentro dela a gente vai fazer essa verificação a essa função vai receber o roleToVerify que pode ser ADMIN ou MEMBER e caso não seja o role ela vai dar o erro.
+import { FastifyReply, FastifyRequest } from 'fastify'
+
+export function verifyUser(roleToVerify: 'ADMIN' | 'MEMBER') {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    const { role } = request.user
+    if (role !== roleToVerify) {
+      return reply.status(401).send({ message: 'Unauthorized' })
+    }
+  }
+}
+
+como vamos usar isso agora
+nos vamos por exemplo em gyms /routes vamos pegar a rota de verificação e vamos passar o onRequest passando para ela o verifyRole e passando o cargo de ADMIN
+assim:
+import { FastifyInstance } from 'fastify'
+
+import { verifyJWT } from '../../middleware/verify-jwt'
+import { search } from './search'
+import { nearby } from './nearby'
+import { create } from './create'
+import { verifyUser } from '@/http/middleware/verifyRole'
+
+export async function gymRoutes(app: FastifyInstance) {
+  app.addHook('onRequest', verifyJWT)
+
+  app.get('/gyms/search', search)
+  app.get('/gyms/nearby', nearby)
+
+  app.post('/gyms', { onRequest: [verifyUser('ADMIN')] }, create)
+}
+
+agora se a gente for no insmonia e autentificar com um usuario que não é admin para poder pegar o token dele. e usar o token dele em uma requisição de criar academia vai dar erro.
+se a gente usar o de um admin e a gente passar os dados necessarios para crar uma academia não vai dar erro.
+vamos passar amesma validação para a rota de checkin validation
+import { FastifyInstance } from 'fastify'
+
+import { verifyJWT } from '../../middleware/verify-jwt'
+import { create } from './create'
+import { validate } from './validate'
+import { history } from './history'
+import { metrics } from './metrics'
+import { verifyUser } from '@/http/middleware/verifyRole'
+
+export async function checkInRoutes(app: FastifyInstance) {
+  app.addHook('onRequest', verifyJWT)
+
+  app.get('/check-ins/history', history)
+  app.get('/check-ins/metrics', metrics)
+
+  app.post('/gyms/:gymId/check-ins', create)
+
+  app.patch(
+    '/check-ins/:checkInId/validate',
+    { onRequest: [verifyUser('ADMIN')] },
+    validate,
+  )
+}
+
+
+
+
+
+
+
 
 
 
