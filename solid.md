@@ -6484,7 +6484,7 @@ services:
       as vezes a gente tem que adicionar a isso um comando de healtcheck em alguns tipos de banco de dados que é para a gente esperar que o banco steja no ar antes de rodar os testes. mas a documentação do bitnami postegress não fala disso então talvez eles não precisem.
       
     com essa configuração do banco de dados feita a gente vai passar a databaseurl igual a que a gente passa no nosso env. a pagina fica assim:
- name: Run End2End Tests
+name: Run End2End Tests
 
 on: [pull_request]
 
@@ -6515,10 +6515,12 @@ jobs:
 
       - run: npm run test:e2e
         env:
-        JWT_SECRET: testing
-        DATABASE_URL: 'postgresql://docker:docker@localhost:5432/apisolid?schema=public'
+          JWT_SECRET: testing
+          DATABASE_URL: 'postgresql://docker:docker@localhost:5432/apisolid?schema=public'
 
 agora com isso salvo a gente cria uma nova branch e leva as alterações para el&.
+tem que tomar muito cuidado com a identaç~~ao
+com isso esta finalizado esse modulo.
 
 
 
