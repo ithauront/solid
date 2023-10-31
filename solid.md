@@ -6458,6 +6458,9 @@ jobs:
       - run: npm run test
 
 
+agora a gente pode salvar e dar um push e vamos la no site do git hub e vamos nesse repositorio e olhamos a aba actions. la a gente pode ver o teste que deve iniciar de rodar assim que a gente deu o push.
+
+
 
 
 
