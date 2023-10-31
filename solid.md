@@ -6415,7 +6415,7 @@ agora quando a gente for la no checkins/validate.spec.ts quando passamos o token
   existe amgumas ferramentas como sonarcube que vai checar  egurança do codigo. e diversas outras ferramentes, os nossos testes tambem.
   ci é o processo de receber codigo de forma continua sempre que alguem escreve codigo, n éao vamos confundir com cd ou continuos deploy que a gente iria dando deploy sempre que alterasse algo.
   a gente vai usar o github actions como algo para a gente configurar para rodar nossos codigos de teste, a gente com o actions consegue configurar açoes para ele fazer antes sempre que rolar um push.
-  para configurar isso a gente na raiz do nosso projeto faz uma pastinha chamada github e dentro dela outra pasta chamada workflows 
+  para configurar isso a gente na raiz do nosso projeto faz uma pastinha chamada .github e dentro dela outra pasta chamada workflows 
   workflows é uma esteira de comando, dentro dessa pasta vao ter cada esteira de comandos que a gente quer executar.
   o primeiro workflow vai ser um arquivo chamado run-unit-tests.yml as extençoes vao ser yml
   dentro desse arquivo a gente vai dar um nome 
@@ -6459,7 +6459,66 @@ jobs:
 
 
 agora a gente pode salvar e dar um push e vamos la no site do git hub e vamos nesse repositorio e olhamos a aba actions. la a gente pode ver o teste que deve iniciar de rodar assim que a gente deu o push.
+funcinou
+e a gente pode inclusive ver o resultado dos testes.
 
+vamos agroa fazer um para os testes end2end
+vamos criar um outro arquivo na pasta chamado run-e2e-test.yml
+por os testes end2end serem mais lentos geralmente a gente não roda eles a cada push e sim a cada pullrequest ou sejacada vez que um usuario faz uma nova feature e pede para os outros baixarem ela. ele vai ser muito parecido com o outro em configuração porque tambem vai rodar no node mesma versão nmp ubuntu etc.
+a alteração que a gente vai fazer vai ser no script a geten vai mudar para ele rodar os testes e2e
+mas quando a gente rodar os testes e21e a gente tem que se preocupar com as variaveis ambiente.
+então abaixo do run do test a gente coloca env: e passamos a JWT_SECRET e passamos para ela qualquer segredo so para isso ser testado.
+Vamos precisar tambem do databaseurl
+porem precisamos de umbanco de dados no ar para poder rodar esses teste. para resolver isso a gente pode ir ao nosso arquivo docker-compose.yml que esta na raiz do projeto. vamos copiar o serviço inteiro dele
+services:
+  api-solid-pg:
+    image: bitnami/postgresql
+    ports:
+      - 5432:5432
+    environment:
+      - POSTGRESQL_USERNAME=docker
+      - POSTGRESQL_PASSWORD=docker
+      - POSTGRESQL_DATABASE=apisolid
+
+      e vamos colar isso depois do runs-on
+      as vezes a gente tem que adicionar a isso um comando de healtcheck em alguns tipos de banco de dados que é para a gente esperar que o banco steja no ar antes de rodar os testes. mas a documentação do bitnami postegress não fala disso então talvez eles não precisem.
+      
+    com essa configuração do banco de dados feita a gente vai passar a databaseurl igual a que a gente passa no nosso env. a pagina fica assim:
+    name: Run End2End Tests
+
+on: [pull_request]
+
+jobs:
+  run-e2e-tests
+    name: Run E2E tests
+    runs-on: ubuntu-latest
+
+    services:
+      api-solid-pg:
+        image: bitnami/postgresql
+        ports:
+           - 5432:5432
+        environment:
+          - POSTGRESQL_USERNAME=docker
+          - POSTGRESQL_PASSWORD=docker
+          - POSTGRESQL_DATABASE=apisolid
+
+
+    steps: 
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: 'npm'
+
+      - run: npm ci
+
+      - run: npm run test:e2e
+        env:
+        JWT_SECRET: testing
+        DATABASE_URL: "postgresql://docker:docker@localhost:5432/apisolid?schema=public"
+
+agora com isso salvo a gente cria uma nova branch e leva as alterações para el&.
 
 
 
