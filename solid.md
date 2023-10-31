@@ -6408,6 +6408,57 @@ agora quando a gente for la no checkins/validate.spec.ts quando passamos o token
     vamos agora no teste de criação de academia gyms/create.spec.ts e fazemos a mesma coisa passamos o true onde pegamos o token.
     vamos agora na nearby.spec e na searchGym e faz a mesma coisa. e agora se a gente rodar o docker nossos testes devem passar.
 
+ # ci
+    continous integration
+  a ideia do ci é que a nossa aplicação possa receber novos codigos continuamente, mesmo depois do deploy. e em um projeto que muitas pessoas trabalham a gente pode ter muita gente enviando codigos e esses codigos devem passar por alguma forma de review antes de ir para programa, existem varias formas como os colegas revisarem,
+  o ci são estrategias que a gente usa para receber esses codigos de forma continua.
+  existe amgumas ferramentas como sonarcube que vai checar  egurança do codigo. e diversas outras ferramentes, os nossos testes tambem.
+  ci é o processo de receber codigo de forma continua sempre que alguem escreve codigo, n éao vamos confundir com cd ou continuos deploy que a gente iria dando deploy sempre que alterasse algo.
+  a gente vai usar o github actions como algo para a gente configurar para rodar nossos codigos de teste, a gente com o actions consegue configurar açoes para ele fazer antes sempre que rolar um push.
+  para configurar isso a gente na raiz do nosso projeto faz uma pastinha chamada github e dentro dela outra pasta chamada workflows 
+  workflows é uma esteira de comando, dentro dessa pasta vao ter cada esteira de comandos que a gente quer executar.
+  o primeiro workflow vai ser um arquivo chamado run-unit-tests.yml as extençoes vao ser yml
+  dentro desse arquivo a gente vai dar um nome 
+  e a primeira coisa depois disso vai ser o quando isso vai rodar.
+  on : [
+    aqui dentro do array a gente pode colocar varias coisas como push(ai ele vai rodar sempre que algum codigo for enviado pro github.)
+    ou a gente pode executar por exemplo com cada pull_request nesse caso vamos colocar o push so
+
+  ]
+
+  depois disso tem o jobs: esta no plural porque podemos executar varios. mas no nosso cao vamos executar um so. que vai ser o run unit tests tudo junto separado apenas por hifen. e ai a gente da um : e começa a especificar esse job. vamos dar um nome para ele.
+  outra opção que vamos ter apos o nome é o runs-on: a gente vai botar ubuntu-latest para ele rodar no ubunto ultima versão.
+  agora vamos colocar os steps: e qaui vamos colocar passo a passo o que deve acontecer para que o programa rode e teste nossa aplicação;
+  existe varias ações que a gente pode colocar aqui; a gente pode configurar ou baixar actions preconfiguradas. A GENTE PODE PROCURAR GITHUBACTION marketplace
+  a gente tem um por exemplo UM PARA INSTALAR O NODE. a gente precisa passar realmente o passo a passo; toda action deve começar com o uses: action/checkout@v3 
+  o checkout baixa o codigo.
+  agora fazemos a action de instalar o node com a verséao 18 do node.
+  passamos o cache junto com o nodversion para p npm assim o github vai saber que é pra usar esse pacote.
+  agora voltamos para o campo do uses  e damos um run ai a gente da uù npm ci que vai ser comp o npm install mas ele néao vai dar interação com usuario ele não vai perguntar nenhum yes ou no
+  agora vamos dar outro run e nele vamos passar o npm run test que é o comando para executar os nossos test unitarios.
+  fica assim:
+  name: Run Unit Tests
+
+on: [push]
+
+jobs:
+  run-unit-tests:
+    name: Run Unit Tests
+    runs-on: ubuntu-latest
+
+    steps: 
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: 'npm'
+
+      - run: npm ci
+
+      - run: npm run test
+
+
+
 
 
 
