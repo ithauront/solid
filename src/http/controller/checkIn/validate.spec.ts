@@ -12,7 +12,7 @@ describe('validate check-in (e2e)', () => {
     await app.close()
   })
   test('if can validate a check-in', async () => {
-    const { token } = await createAndAuntenticateUser(app)
+    const { token } = await createAndAuntenticateUser(app, true)
 
     const user = await prisma.user.findFirstOrThrow()
 

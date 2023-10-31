@@ -6351,9 +6351,62 @@ export async function checkInRoutes(app: FastifyInstance) {
     validate,
   )
 }
+# teste para o role
+vamos agora fazer a atualização teste para a autorização por meio de role.
+se a gente rodar nossos testes agora vamos ter bastante erros porque o nosso backend vai pedir uma autorização por role que nossas solicitações não vao ter. entéao nos vamos começar a reparar isso. vamos começar por esses erros de autorização por role. 
+no nosso create and auntenticate user na pasta utils/test a gente ta criando o usuario chamando a rota e não estamo passando se ele é um admin então ele é por padr ão um membrer. vamos então mudar a forma que ele é feito. atualmente ele esta assim:
+import { FastifyInstance } from 'fastify'
+import request from 'supertest'
 
+export async function createAndAuntenticateUser(app: FastifyInstance) {
+  await request(app.server).post('/users').send({
+    name: 'Jhon Doe',
+    email: 'jhondoe@example.com',
+    password: 'testpassword',
+  })
+  const authResponse = await request(app.server).post('/sessions').send({
+    email: 'jhondoe@example.com',
+    password: 'testpassword',
+  })
+  const { token } = authResponse.body
 
+  return { token }
+}
 
+a gente vai adicionar aos parametros que  função recebe o isAdmin e a gente vai sertar ele como false
+e a gente vai  usar o await prisma.user.create e passar para o create como data as especificaçãoes para criar um usuario mudando de password para password_hash e usando a função hash do bcrypt para fazer um hash de 6 rounds da stringonar o ronte passar. alem disso a gente vai adicionar o role, e esse role se ele existir vai ser admin, se não vai ser member. fica assim:
+import { prisma } from '@/lib/prisma'
+import { hash } from 'bcryptjs'
+import { FastifyInstance } from 'fastify'
+import request from 'supertest'
+
+export async function createAndAuntenticateUser(
+  app: FastifyInstance,
+  isAdmin = false,
+) {
+  await prisma.user.create({
+    data: {
+      name: 'Jhon Doe',
+      email: 'jhondoe@example.com',
+      password_hash: await hash('testPassword', 6),
+      role: isAdmin ? 'ADMIN' : 'MEMBER',
+    },
+  })
+  const authResponse = await request(app.server).post('/sessions').send({
+    email: 'jhondoe@example.com',
+    password: 'testpassword',
+  })
+  const { token } = authResponse.body
+
+  return { token }
+}
+
+agora quando a gente for la no checkins/validate.spec.ts quando passamos o token para validar o chekin a gente passa como segundo argumento o true, assim a gente valida o usuario como member.
+ test('if can validate a check-in', async () => {
+    const { token } = await createAndAuntenticateUser(app, true)
+
+    vamos agora no teste de criação de academia gyms/create.spec.ts e fazemos a mesma coisa passamos o true onde pegamos o token.
+    vamos agora na nearby.spec e na searchGym e faz a mesma coisa. e agora se a gente rodar o docker nossos testes devem passar.
 
 
 
