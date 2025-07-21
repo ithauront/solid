@@ -118,11 +118,11 @@ Start the dev server:
 npm run dev
 ```
 
-📝 Notes
+#### 📝 Notes
 
   This project is not deployed in production. To explore it, please run locally using the steps above. Some of my other backends project are deployed.
 
-📚 What I Learned
+## 📚 What I Learned
 
    * Functional Design & Business Logic:
 
